@@ -14,7 +14,11 @@ Distributions/
 *.MAP
 *.cof
 *.COF
+*.mcp
+*.MCP
+*.mcs
+*.MCS
+*.mcw
+*.MCW
 !OriginalHexFiles/*.*
-!OriginalHexFiles/*.*
-
-
+!IDE Project File Copies/*.*
