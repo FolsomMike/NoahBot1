@@ -23,14 +23,14 @@
 ;
 ; Port A
 ;
-; RA0   Out - serial data line to LCD
-; RA1   Out - Rough/Fine Control Output
-; RA2   Out - Shutdown to EDM power supply
-; RA3   In  - High Limit Input to Comparator
-; RA4   In  - Low  Limit Input to Comparator
-; RA5   In  - EDM Current Short Detect
-; RA6   xxx - XTAL Circuit
-; RA7   xxx - XTAL Circuit
+; RA0   Out - Drive Motor Negative
+; RA1   Out - Drive Motor Positive
+; RA2   Out - Right LED
+; RA3   Out - Left LED
+; RA4
+; RA5
+; RA6   Out - Steering Motor Negative
+; RA7   Out - Steering Motor Positive
 ;
 ; Port B
 ;
@@ -38,26 +38,29 @@
 ; RB1
 ; RB2
 ; RB3
-; RB4
-; RB5
+; RB4   To Black Pushbutton (Switch Between Menu Options / Start-Stop)
+; RB5   To Red Pushbutton (Menu/Enter)
 ; RB6   In -  PIC Programmer Interface
 ; RB7   Out - PIC Programmer Interface
 ;
 ; Function by System
 ;
-; Motor
+; Motors
 ;
-; RBO   Motor Step
-; RB1   Motor Direction
-; RB2   Motor Mode Step Size - (Microstep Select Full/Half/Quarter/Eighth)
-; RB7   Motor Enable & PIC Programmer Interface
+; RA0   Out - Drive Motor Negative
+; RA1   Out - Drive Motor Positive
+; RA6   Out - Steering Motor Negative
+; RA7   Out - Steering Motor Positive
 ;
 ; Buttons
 ;
-; RB3   Reset Button
-; RB4   Jog Up Button
-; RB5   Jog Down Button
-; RB6   Mode Button PIC Programmer Interface
+; RB4   To Black Pushbutton (Switch Between Menu Options / Start-Stop)
+; RB5   To Red Pushbutton (Menu/Enter)
+;
+; LEDs
+;
+; RA2   Out - Right LED
+; RA3   Out - Left LED
 ;
 ;end of Control Control Description
 ;--------------------------------------------------------------------------------------------------
@@ -113,6 +116,17 @@
 LEDS            EQU     0x05		; PORTA
 LED_RIGHT       EQU     0x02		; RA2
 LED_LEFT        EQU     0x03		; RA3
+
+MOTORS          EQU     0x05		; PORTA
+DRIVE_NEG       EQU     0x00		; RA0
+DRIVE_POS       EQU     0x01		; RA1
+STEER_NEG       EQU     0x06		; RA6
+STEER_POS       EQU     0x07		; RA7
+
+
+BUTTONS			EQU     0x06		; PORTB
+ACTION			EQU		0X04		; RB4		To Black Pushbutton (Switch Between Menu Options / Start-Stop)
+MENU			EQU		0X05		; RB5		To Red Pushbutton (Menu/Enter)
 
 ; end of Hardware Definitions
 ;--------------------------------------------------------------------------------------------------
@@ -238,6 +252,17 @@ start:
 
     call    setup           ; preset variables and configure hardware
 
+    bcf     STATUS,RP0      ; select bank 0
+
+	bcf		MOTORS, DRIVE_POS	; turn off drive motor by setting setting both lines to GND
+	bcf		MOTORS, DRIVE_NEG
+
+	bcf		MOTORS, STEER_POS	; turn off steer motor by setting setting both lines to GND
+	bcf		MOTORS, STEER_NEG
+
+
+	bsf		MOTORS, DRIVE_NEG	; drive motor forward
+
     goto    runLoop
     
 ; end of start
@@ -249,6 +274,93 @@ start:
 
 runLoop:
 
+	btfss	BUTTONS, ACTION
+	call	flashAlternatingFast
+
+	btfss	BUTTONS, MENU
+	call	flashAlternatingSlow
+
+	goto	runLoop
+    
+; end of runLoop
+;--------------------------------------------------------------------------------------------------
+
+;--------------------------------------------------------------------------------------------------
+; flashAlternatingFast
+;
+; Flashes the LEDs back and forth rapidly.
+;
+
+flashAlternatingFast:
+
+
+fAF1:
+
+	bsf		MOTORS, DRIVE_NEG	; drive motor forward
+    movlw   0x10
+    movwf   scratch4
+
+fAF2:
+	
+	decfsz  scratch4,F     		; count down direction change timer
+	goto	fAF4
+
+    movlw   0x10
+    movwf   scratch4
+
+	btfss	MOTORS, DRIVE_NEG
+	goto	fAF3
+
+	bcf		MOTORS, DRIVE_NEG	; drive motor reverse
+	bsf		MOTORS, DRIVE_POS
+
+	goto	fAF4
+
+fAF3:
+
+	bsf		MOTORS, DRIVE_NEG	; drive motor forward
+	bcf		MOTORS, DRIVE_POS
+
+fAF4:
+
+    bcf     STATUS,RP0      ; select bank 0
+	bcf     PORTA,LED_LEFT	; turn on the left LED (low output turns on)
+	bsf     PORTA,LED_RIGHT ; turn on the right LED (low output turns on)							
+
+    movlw   0x0
+    movwf   scratch1
+    movlw   0x45
+    call    bigDelayA       ; delay
+
+    bcf     STATUS,RP0      ; select bank 0
+	bsf     PORTA,LED_LEFT	; turn on the left LED (low output turns on)
+	bcf     PORTA,LED_RIGHT ; turn on the right LED (low output turns on)							
+
+    movlw   0x0
+    movwf   scratch1
+    movlw   0x45
+    call    bigDelayA       ; delay
+
+   	bcf     STATUS,RP0      ; select bank 0
+	btfss	BUTTONS, MENU
+	return
+
+    goto    fAF2
+
+; end of flashAlternatingFast
+;--------------------------------------------------------------------------------------------------
+
+;--------------------------------------------------------------------------------------------------
+; flashAlternatingSlow
+;
+; Flashes the LEDs back and forth slowly.
+;
+
+flashAlternatingSlow:
+
+fAS1:
+
+	bcf		MOTORS, DRIVE_NEG	; stop drive motor
 
     bcf     STATUS,RP0      ; select bank 0
 	bcf     PORTA,LED_LEFT	; turn on the left LED (low output turns on)
@@ -268,9 +380,13 @@ runLoop:
     movlw   0x90
     call    bigDelayA       ; delay
 
-    goto    runLoop
-    
-; end of runLoop
+   	bcf     STATUS,RP0      ; select bank 0
+	btfss	BUTTONS, ACTION
+	return
+
+    goto    fAS1
+
+; end of flashAlternatingSlow
 ;--------------------------------------------------------------------------------------------------
 
 ;--------------------------------------------------------------------------------------------------
