@@ -2144,11 +2144,11 @@ setupPortA:
 
     ; set direction for each pin used
 
-    bsf     TRISA, RED_SW	      ; input    
-    bsf     TRISA, BLK_SW             ; input
+    bsf     TRISA, RED_SW               ; input    
+    bsf     TRISA, BLK_SW               ; input
     
-    bcf	    TRISA, LEFT_LED	      ; output
-    bcf	    TRISA, RIGHT_LED	      ; output
+    bcf	    TRISA, LEFT_LED             ; output
+    bcf	    TRISA, RIGHT_LED            ; output
     
     return
 
@@ -2187,8 +2187,11 @@ setupPortB:
     movlw   b'11111111'                 ; first set all to inputs
     movwf   TRISB
     
-    bcf	    TRISB, UNUSED_RB5	      ; output
-    bcf	    TRISB, UNUSED_RB7	      ; output
+    bsf	    TRISB, RB4                  ; set as input for use as I2C bus
+    bsf	    TRISB, RB6                  ; set as input for use as I2C bus
+    
+    bcf	    TRISB, UNUSED_RB5           ; output
+    bcf	    TRISB, UNUSED_RB7           ; output
 
     return
 
@@ -2223,14 +2226,14 @@ setupPortC:
     movlw   b'11111111'                 ; first set all to inputs
     movwf   TRISC
 
-    bcf     TRISC, ICSPDAT	        ; output
+    bcf     TRISC, ICSPDAT              ; output
     bcf     TRISC, ICSPCLK  	        ; output
     bcf     TRISC, UNUSED_RC2	        ; output
     bcf     TRISC, UNUSED_RC3	        ; output
-    bcf     TRISC, STEER_MOTOR_A	; output
-    bcf     TRISC, STEER_MOTOR_B	; output
-    bcf     TRISC, DRIVE_MOTOR_A	; output
-    bcf     TRISC, DRIVE_MOTOR_B	; output
+    bcf     TRISC, STEER_MOTOR_A        ; output
+    bcf     TRISC, STEER_MOTOR_B        ; output
+    bcf     TRISC, DRIVE_MOTOR_A        ; output
+    bcf     TRISC, DRIVE_MOTOR_B        ; output
     
     return
 
