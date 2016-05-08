@@ -1,27 +1,14 @@
 ;--------------------------------------------------------------------------------------------------
-; Project:  OPT EDM Notch Cutter -- Main PIC software
-; Date:     2/29/12
+; Project:  NoahBot1 -- Main PIC software
+; Date:     5/1/16
 ; Revision: See Revision History notes below.
-;
-; IMPORTANT: When programming the PIC in the notch cutter, turn the Electrode Current switch to
-; Off and the Electrode Motion switch to Setup.
-;
-; Normally, the programming header for the LCD PIC is not installed on the board.  It can be
-; installed in the Main PIC socket, programmed, and then moved to the LCD PIC socket.
 ;
 ; Overview:
 ;
-; This program controls an EDM cutting device by manipulating a motor which moves the head up and
-; down and a high current power supply which provides voltage to the cutting blade.  The current
-; output of the electrode cutting blade is monitored to adjust the height of the blade above the
-; material being cut so that the current maintains optimum value.
-;
-; The program monitors several button inputs and displays data on an LCD display.
-;
-; There are two PIC controllers on the board -- the Main PIC and the LCD PIC.  This code is
-; for the Main PIC.  The Main PIC sends data to the LCD PIC via a serial data line for display
-; on the LCD.
-;
+; This program controls a robot.
+;                                     
+; The program controls a drive motor, a steering motor, and monitors several button inputs and
+; displays data on an LCD display.
 ; 
 ;--------------------------------------------------------------------------------------------------
 ; Notes on PCLATH
@@ -44,28 +31,7 @@
 ;
 ; Revision History:
 ;
-; 1.0   Some code and concepts used from source code disassembled from hex object code version 6.4 
-;       from original author.
-; 7.6e	Version distributed.  Has aggression control.
-; 7.7a	Fixed bug: asterisk wasn't displaying by the "Up" label when doing fast retract from
-;		 over current condition in auto cut mode.
-;		Increased responsiveness in auto cut mode.
-;		Changed motor step size back to Full.  This was the original setting used by the designer.
-; 7.7b  Motor direction reversed so motor wiring makes more sense.
-;		The "R" prefix removed from the displayed version so that the letter suffix can fit.
-; 7.7c	Added "repeat cycle" test function for testing for proper operation.  The head will be
-;		driven down until the low current input signal is cleared and then retracted quickly
-;		back to the starting position.  The cycle is repeated until the user exits.
-; 7.7d	Fixed bug in "repeat cycle" test where it was locking up in the retreat mode because
-;		the power supply wasn't coming up fast enough at the start.
-;		Improved the input button handling - better debounce, faster response.
-;		Improved the multiple page menu handling - cursor starts on bottom option when moving
-;		back to a previous menu page.
-; 7.7e  Fixed incrementing/decrementing of multibyte variables -- decrementing was skipping a
-;		count when crossing the zero thresold of an upper byte.
-; 7.7f	Fixed comments explaining commands to the LCD screen. Cleaned up superfluous code.
-; 7.7g	Refactoring for clarity.
-;
+; 1.0   Some code and concepts used from Notch Cutter main PIC 3.
 ;
 ;--------------------------------------------------------------------------------------------------
 ; Miscellaneous Notes
@@ -81,94 +47,6 @@
 ; For a quickie but not perfect count down of a two byte variable, decf and the Z flag can be used
 ; but the upper byte will be decremented one count too early. WARNING: checking both bytes for
 ; zero to end the countdown will result in stopping 255 counts too early.
-;
-;--------------------------------------------------------------------------------------------------
-; Operational Notes
-;
-; Standard Reach Tool
-;
-; The cam should turn clockwise when the head is being driven down.
-; The cam should make a full rotation in 65 seconds while jogging up or down in Setup mode.
-;
-; The motor used for the OPT standard reach head is:
-;
-; manufactured by Faulhaber @ http://www.faulhaber.com/
-; sold by www.micromo.com
-;
-; Printed on motor: 
-;
-;	ARSAPE
-;	swiss made
-;	AM1524-A-025-125-71
-;
-; 	AM1524 	  ~ AM motor design, 15 mm diameter, 24 steps per revolution
-;	A-025-125 ~ -A-0,25-12,5 Winding Type
-;	71	  ~ 71 (-73)  ~ Plain shaft, L=4,3mm (Designation for assembly with gearhead 15A)
-;
-; On the sticker on the motor:
-;
-;   Faulhaber
-;   P/N: AM15P0199
-;   PO: 956952-003
-;   JO: 30212/2     KW36/13
-;   www.micromo.com
-;
-;
-; A planetary gearhead is attached: Faulhaber Series 15A.  There are no identifying numbers for
-; the gearhead printed on the assembly.
-; 
-; Using Full Step mode, the motor has 24 steps per revolution.
-;
-; Empirical testing shows the gear reduction ratio to be 69:1
-;
-; Using Full Step mode, this results in 1656 steps per revolution of the cam:
-;	24 steps/rev (motor shaft) * 69 (in revs / out revs) = 1656 steps per cam rev
-;
-; On the working side of the cam, each degree of rotation moves the head one mil.
-; 1 degree = 1 mil
-; Rate is 4.6 steps / degree (1656 / 360), which is 4.6 steps / mil of head travel.
-;
-; Thus, one step is 0.000217391"
-;
-; Extended Reach Tool
-;
-; The Standard Tool Ratio is 9.14 times the Extended Tool Ratio
-;
-; The same motor is used as for the Standard Reach Tool, but a lead screw is used which changes
-; the final gear ratio.
-;
-; One motor revolution = 1mm of blade travel
-; 1mm = 0.0393700787"
-; One motor revolution is 1656 steps
-; 0.0393700787" / 1656 = .000023774"
-;
-; Thus, one step is .000023774"
-;
-;--------------------------------------------------------------------------------------------------
-;
-; J8 on the schematics is implemented as switches labeled "microstep set" on the board.  The
-; step size inputs to the motor controller chip are defined as follows:
-;
-; MS1 MS2
-;  L   L  = Full Step
-;  H   L  = Half
-;  L   H  = Quarter
-;  H   H =  Eighth
-;
-; Typical J8 switch settings on the board:
-; 1 (MS1) = Off  2 (MS2) = On
-;
-; When a J8 switch is off, it forces the associated input (MS1 or MS2) to be low.
-; When a J8 switch is on, it allows the associated input to be controlled by RB2.
-;
-; Thus, with MS1 Off, it is always low.
-; With MS1 On, it is set by RB2.
-; If RB2 is set high, MS2 = high - step size will be 1/4.  If set low, step size will be full.
-;
-; The full step size is currently used - as of version 7.7a
-;
-; The PIC chip's internal comparators are NOT used to detect over/under current conditions - see
-; note in header of "setup" function.
 ;
 ;--------------------------------------------------------------------------------------------------
 ; Hardware Control Description
@@ -218,17 +96,9 @@
 ;
 ; User Inputs
 ;
-; On startup, Mode button used to select between Standard Cut Depth and Extended Cut Depth
-;
-; Mode button used during operation to select Cut, Jog, & Setup modes.
-;
-; Jog Up and Jog Down buttons used to move cutting head up & down.
-;
-; Select button used to accept an entry or selection, stop a function, or return to a menu.
-;  (also referred to as "Reset" on the schematic and "Zero Reset" on wiring harness"
 ;
 ;--------------------------------------------------------------------------------------------------
-
+    
 ;--------------------------------------------------------------------------------------------------
 ; Defines
 ;
@@ -240,76 +110,73 @@
 
 ;#define DEBUG_MODE 1     ; set DEBUG_MODE testing "on" ;//debug mks -- comment this out later
 
-; Values for the digital pot settings.
-;
-; Each count equals approximately 0.0196V when power is at +5V
-;
-
-HI_CURRENT_LIMIT_POT    EQU     .69     ; .69/.59 cuts .060 notch in 1.5 minutes
-LO_CURRENT_LIMIT_POT    EQU     .59
-
-CURRENT_LIMIT_DIFFERENCE    EQU .10     ; difference between high and low current pot values
-
-CURRENT_LIMIT_POT_OFFSET    EQU .49     ; base level for HI_CURRENT_LIMIT_POT when power level
-                                        ; is 0 (0 not actually used -- 1 is lowest value)
-CURRENT_LIMIT_POT_INCREMENT EQU .10     ; increment between each pot value setting for each
-                                        ; count of power level
-
-VOLTAGE_MONITOR_POT         EQU     .255
-CURRENT_MONITOR_POT         EQU     .255
-
-
-; Cutting Current Pulse Controller Values (cycle width and duty cycle)
-;
-; with oscillator frequency of 16 Mhz and Timer 2 prescaler set to 4:
-;
-; each count of PWM_PERIOD equals 1uS of period with an offset of +1
-;
-;    period uS = (PWM_PERIOD + 1) * 1 uS
-;
-; each count of PWM_DUTY_CYCLE_LO_BYTE_DEFAULT:PWM_DUTY_CYCLE_LO_BYTE_DEFAULT equals 0.25 uS
-;  for the high pulse width -- note that signal is inverted before it reaches testpoing J23 so this
-;  is actually a low pulse at that point
-;
-;   pulse width uS = PWM_DUTY_CYCLE_LO_BYTE_DEFAULT:PWM_DUTY_CYCLE_LO_BYTE_DEFAULT * 0.25 uS
-;
-
-
-PWM_PERIOD_DEFAULT EQU  .217                ; gives 218 uS PWM period
-                                            ; period uS = (PWM_PERIOD + 1) * 1 uS
-
-PWM_DUTY_CYCLE_HI_BYTE_DEFAULT      EQU     0x00    ; 00:b8 gives 46 uS PWM high pulse width
-PWM_DUTY_CYCLE_LO_BYTE_DEFAULT      EQU     0xb8    ; (high:lo) * 0.25 uS = high pulse width
-                                                    ; note that signal is inverted befor it reaches
-                                                    ; testpoint J23
-
-PWM_POLARITY_DEFAULT                EQU     0x00
-
-
-; LED PIC Commands
-
-LEDPIC_SET_LEDS                 EQU 0x00    ; sets the on/off states of the LED arrays
-LEDPIC_SET_PWM                  EQU 0x01    ; sets the PWM values
-LEDPIC_START                    EQU 0x02    ; starts normal operation
-LEDPIC_SET_RESET                EQU 0xff    ; resets to a known state
-
     
 ;LCD Screen Position Codes                
                 
-LINE1_COL1  EQU     0x80                
-LINE2_COL1  EQU     0xc0
-LINE3_COL1  EQU     0x94
-LINE4_COL1  EQU     0xd4
+LINE1_COL1  EQU     0x00                
+LINE2_COL1  EQU     0x40
 
-LINE1_COL7  EQU     0x86  
-LINE2_COL2  EQU     0xc1  
-LINE2_COL5  EQU     0xc4
-LINE2_COL14 EQU     0xcd
-LINE3_COL2  EQU     0x95  
-LINE4_COL12 EQU     0xdf
-LINE4_COL18 EQU     0xe5
+;LINE1_COL7  EQU     0x86  
+;LINE2_COL2  EQU     0xc1  
 
 ; end of Defines
+;--------------------------------------------------------------------------------------------------
+
+;-------------------------------------------------------------------------------------------------- 
+; LCD Display Defines
+;
+ 
+; commands
+ 
+LCD_CLEARDISPLAY    EQU 0x01
+LCD_RETURNHOME      EQU 0x02
+LCD_ENTRYMODESET    EQU 0x04
+LCD_DISPLAYCONTROL  EQU 0x08
+LCD_CURSORSHIFT     EQU 0x10
+LCD_FUNCTIONSET     EQU 0x20
+LCD_SETCGRAMADDR    EQU 0x40
+LCD_SETDDRAMADDR    EQU 0x80
+
+; flags for display entry mode
+ 
+LCD_DEC                 EQU 0x00
+LCD_INC                 EQU 0x02
+LCD_SHIFT               EQU 0x01
+LCD_NO_SHIFT            EQU 0x00
+
+; flags for display on/off control
+ 
+LCD_DISPLAYON   EQU 0x04
+LCD_DISPLAYOFF  EQU 0x00
+LCD_CURSORON    EQU 0x02
+LCD_CURSOROFF   EQU 0x00
+LCD_BLINKON     EQU 0x01
+LCD_BLINKOFF    EQU 0x00
+
+; flags for display/cursor shift
+
+LCD_DISPLAYMOVE EQU 0x08
+LCD_CURSORMOVE  EQU 0x00
+LCD_MOVERIGHT   EQU 0x04
+LCD_MOVELEFT    EQU 0x00
+
+; flags for function set
+    
+LCD_8BITMODE    EQU 0x10
+LCD_4BITMODE    EQU 0x00
+LCD_2LINE       EQU 0x08
+LCD_1LINE       EQU 0x00
+LCD_5x10DOTS    EQU 0x04
+LCD_5x8DOTS     EQU 0x00
+
+; control flags
+     
+LCD_BACKLIGHT   EQU .3
+LCD_EN          EQU .2                    ; high pulse to write or read data from LCD
+LCD_RW          EQU .1                    ; 1 = read 0 = write
+LCD_RS          EQU .0                    ; 1 = data register 0 = instruction register
+ 
+; end of LCD Display Defines
 ;--------------------------------------------------------------------------------------------------
 
 ;--------------------------------------------------------------------------------------------------
@@ -329,8 +196,6 @@ LINE4_COL18 EQU     0xe5
 
 
 ;#include <xc.h>
-
-#INCLUDE <STANDARD 2.MAC>     	; include standard macros
 
 ; Specify Device Configuration Bits
 
@@ -434,42 +299,19 @@ AC_OK_FLAG              EQU     5
 
 ;bits in outputStates variable
 
-AC_OK_LED_FLAG          EQU     0
-BUZZER_FLAG             EQU     1
-SHORT_LED_FLAG          EQU     2
+UNUSED1                 EQU     0
+UNUSED2                 EQU     1
+UNUSED3                 EQU     2
        
-
-; I2C bus ID byte for writing to digital pot 1
-; upper nibble = 1010 (bits 7-4)
-; chip A2-A0 inputs = 001 (bits 3-1)
-; R/W bit set to 0 (bit 0)
-
-DIGITAL_POT1_WRITE_ID       EQU     b'10100010'
-
-HI_LIMIT_POT_ADDR           EQU     0x0
-LO_LIMIT_POT_ADDR           EQU     0x1
-VOLTAGE_MONITOR_POT_ADDR    EQU     0x2
-CURRENT_MONITOR_POT_ADDR    EQU     0x3
-
-; I2C bus ID bytes for writing and reading to EEprom 1
-; upper nibble = 1010 (bits 7-4)
-; chip A2-A0 inputs = 000 (bits 3-1)
+; I2C bus ID bytes for writing and reading to LCD
+; bits 7-1 = device address of 0x3f                 
+; upper nibble = 0111 (bits 7-4)
+; chip A2-A0 inputs = 111 (bits 3-1)
 ; R/W bit set to 0 (bit 0) for writing
 ; R/W bit set to 1 (bit 0) for reading
-
-EEPROM1_WRITE_ID            EQU     b'10100000'
-EEPROM1_READ_ID             EQU     b'10100001'
-
-
-; I2C bus ID bytes for writing and reading to the LED PIC
-; upper nibble = 1010 (bits 7-4)
-; chip A2-A0 inputs = 010 (bits 3-1)
-; R/W bit set to 0 (bit 0) for writing
-; R/W bit set to 1 (bit 0) for reading
-
-LED_PIC_WRITE_ID            EQU     b'10100100'
-LED_PIC_READ_ID             EQU     b'10100101'
-
+                 
+LCD_WRITE_ID    EQU     b'01111110'
+LCD_READ_ID     EQU     b'01111111'
 
 ; end of Hardware Definitions
 ;--------------------------------------------------------------------------------------------------
@@ -479,30 +321,32 @@ LED_PIC_READ_ID             EQU     b'10100101'
 
 ; bits in flags variable
 
-EXTENDED_MODE   EQU     0x0
-CUT_STARTED     EQU     0x1
-AT_DEPTH        EQU     0x2
-WALL_MODE       EQU     0x3
-DATA_MODIFIED   EQU     0x4
-UPDATE_DISPLAY  EQU     0x5
-UPDATE_DIR_SYM  EQU     0x6
-MOTOR_DIR_MODE	EQU     0x7
+UNUSED_1_0  EQU     0x0
+UNUSED_1_1  EQU     0x1
+UNUSED_1_2  EQU     0x2
+UNUSED_1_3  EQU     0x3
+UNUSED_1_4  EQU     0x4
+UNUSED_1_5  EQU     0x5
+UNUSED_1_6  EQU     0x6
+UNUSED_1_7	EQU     0x7
 
 ; bits in flags2 variable
 
 HEADER_BYTE_1_RCVD  EQU 0
 HEADER_BYTE_2_RCVD  EQU 1
 LENGTH_BYTE_VALID   EQU 2
-SERIAL_PACKET_READY EQU 3
-PACKET_SEND_TYPE    EQU 4
-
+SERIAL_PACKET_READY EQU 3    
+LCD_REG_SEL         EQU 4
+LCD_BACKLIGHT_SEL   EQU 5
+UNUSED_2_2          EQU 6
+UNUSED_2_3          EQU 7
+    
 ; bits in flags3 variable
 
-EROSION_MODE    EQU     0
+UNUSED_3_0      EQU     0
 DEBOUNCE_ACTIVE EQU     1
-TIME_CRITICAL   EQU     2
-ALARM_ENABLED   EQU     3
-    
+TIME_CRITICAL   EQU     2    
+ 
 ; bits in statusFlags variable
 
 SERIAL_COM_ERROR    EQU 0
@@ -554,46 +398,32 @@ BLINK_ON_FLAG			EQU		0x01
 
  cblock 0x20                ; starting address
 
-; WARNING: flags, flags2, and flags3 should all be contiguous for eeprom saving/loading
-
-    flags                   ; bit 0: 0 = standard mode, 1 = extended cut depth mode
-                            ; bit 1: 0 = cut not started, 1 = cut started
-                            ; bit 2: 0 = depth not reached, 1 = depth reached
-                            ; bit 3: 0 = notch mode, 1 = wall reduction mode
-                            ; bit 4: 0 = data not modified, 1 = data modified (used by various functions)
-                            ; bit 5: 0 = no display update, 1 = display update (used by various functions)
-							; bit 6: 0 = no update direction symbol, 1 = update (used by various functions)
-							; bit 7: 0 = normal motor rotation, 1 = reverse motor direction
+    flags                   ; bit 0: 0 =
+                            ; bit 1:
 
     flags2                  ; bit 0: 1 = first serial port header byte received
                             ; bit 1: 1 = second serial port header byte received
                             ; bit 2: 1 = serial port packet length byte received and validated
                             ; bit 3: 1 = data packet ready for processing
-                            ; bit 4: 0 = send LCD data packet, 1 = send Output States packet
-                            ; bit 5:
-							; bit 6:
-							; bit 7:
-
-    flags3                  ; bit 0: 0 = no erosion factor, 1 = use erosion factor
+                            ; bit 4: 0 = LCD instruction register, 1 = LCD data register
+                            ; bit 5: 0 = LCD backlight off, 1 = on
+							; bit 6: 0 =
+							; bit 7: 0 =
+    
+    flags3                  ; bit 0:
                             ; bit 1: 0 = debounce timer, inactive 1 = timer active
                             ; bit 2: 0 = no time criticality, 1 = time critical operation
-                            ; bit 3: 0 = alarm disabled, 1 = alarm enabled
+                            ; bit 3:
                             ; bit 4:
                             ; bit 5:
                             ; bit 6:
                             ; bit 7:
-
-    statusFlags             ; bit 0: 0 = one or more com errors from serial have occurred
-                            ; bit 1: 0 = one or more com errors from I2C have occurred
-                            ; bit 2: 0 =
-                            ; bit 3: 0 =
-                            ; bit 4: 0 =
-                            ; bit 5: 0 =
-							; bit 6: 0 =
-							; bit 7: 0 =
+        
+    statusFlags             ; bit 0: 1 =
+                            ; bit 1: 1 = 
                             
-    menuOption              ; tracks which menu option is currently selected
-
+    menuOption              ; tracks which menu option is currently selected                            
+                            
     xmtDataTimer            ; used to control rate of data sending
     
     switchStates
@@ -605,37 +435,6 @@ BLINK_ON_FLAG			EQU		0x01
 
     outputStates            ; state of the outputs
     
-    eepromAddressL		    ; use to specify address to read or write from EEprom
-    eepromAddressH          ; high byte
-    eepromCount	        	; use to specify number of bytes to read or write from EEprom
-
-    hiCurrentLimitPot       ; value for digital pot which sets the high current limit value
-    loCurrentLimitPot       ; value for digital pot which sets the high current limit value
-    powerLevel              ; store the power level of the high/low current values in use
-
-    speedValue              ; stores sparkLevel converted to a single digit
-
-    sparkLevel              ; current value being used - copy from sparkLevelNotch or sparkLevelWall
-                            ; depending on flags.WALL_MODE
-
-    sparkLevelNotch         ; specifies the low amount of spark to trigger an advance in notch mode,
-                            ;  smaller number makes advance more aggressive
-    sparkLevelWall          ; same as above, but for the wall reduction mode
-                            ; NOTE: keep sparkLevelNotch and sparkLevelWall contiguous
-
-    sparkTimer1             ; tracks time between sparks (sensed by voltage change on comparator input)
-    sparkTimer0
-
-    overCurrentTimer1	    ; tracks time between over current spikes (sensed by voltage change on comparator input)
-    overCurrentTimer0
-
-    pwmSetCommandByte       ; convenience variable for the LED PIC set LEDs command byte
-    pwmDutyCycleHiByte      ; cutting current pulse controller duty cycle time
-    pwmDutyCycleLoByte
-    pwmPeriod               ; cutting current pulse controller period time
-    pwmPolarity             ; polarity of the PWM output -- only lsb used
-    pwmCheckSum             ; used to verify PWM values read from eeprom
-
     debounceH               ; switch debounce timer decremented by the interrupt routine
     debounceL
 
@@ -643,9 +442,6 @@ BLINK_ON_FLAG			EQU		0x01
     bigDelayCnt
     smallDelayCnt
     
-    normDelay               ; delay between motor pulses for normal mode (slow)
-    setupDelay              ; delay between motor pulses for setup mode (fast)
-
     cursorPos               ; contains the location of the cursor
                             ; NOTE: LCD addressing is screwy - the lines are not in sequential order:
                             ; line 1 column 1 = 0x80  	(actually address 0x00)
@@ -678,9 +474,6 @@ BLINK_ON_FLAG			EQU		0x01
     scratch8
     scratch9
     scratch10
-
-	cycleTestRetract0		; wip mks - use a scratch variable instead?
-	cycleTestRetract1		; wip mks - use a scratch variable instead?
 
 	; next variables ONLY written to by interrupt code
 
@@ -722,62 +515,6 @@ BLINK_ON_FLAG			EQU		0x01
 
  cblock 0xa0                ; starting address
 
-    ; Current depth of electrode. This is the distance travelled since last zeroing.
-    ; unpacked BCD decimal value, each can be 0-9
-    ; The decimal point is two digits from the left for all depth related values: xx.xxxxxxxxx
-
-    depth10                 ; most significant digit
-    depth9
-    depth8
-    depth7
-    depth6
-    depth5
-    depth4
-    depth3
-    depth2                  
-    depth1
-    depth0                  ; least significant digit
-    depthSign               ; zero if value is positive or zero, non-zero if negative
-
-    ; Target depth for electrode. This is the distance at which to stop cutting.
-    ; unpacked BCD decimal value, each can be 0-9
-    ; The decimal point is two digits from the left for all depth related values: xx.xxxxxxxxx
-
-    target10                ; most significant digit
-    target9
-    target8
-    target7
-    target6
-    target5
-    target4
-    target3
-    target2                  
-    target1
-    target0                 ; least significant digit
-    targetSign
-
-    ; Number of inches per motor step -- used to update the depth value for each step.
-    ; The appropriate step value for the selected head and erosion rate are copied here for
-    ; use during operation.
-    ; unpacked BCD decimal value, each can be 0-9
-    ; The decimal point is two digits from the left for all depth related values: xx.xxxxxxxxx
-
-    step10                 ; most significant digit
-    step9
-    step8
-    step7
-    step6
-    step5
-    step4
-    step3
-    step2                  
-    step1
-    step0                  ; least significant digit
-    stepSign
-    
-    scratchc0               ; scratches defined in bank c(2) so that we don't have to switch
-    scratchc1               ; banks all the time
-    scratchc2
 
  endc
 
@@ -836,38 +573,6 @@ SERIAL_XMT_BUF_LINEAR_LOC_L     EQU low SERIAL_XMT_BUF_LINEAR_ADDRESS
 ;--------------------------------------------------------------------------------------------------
 
 ;--------------------------------------------------------------------------------------------------
-; Variables in EEprom
-;
-; Assign variables in EEprom
-;
-
- cblock 	0x0      	; Variables start in RAM at 0x0
-	
-	eeTarget3           ; storage for target depth value
-    eeTarget2
-    eeTarget1
-    eeTarget0
-
-    eeFlags             ; flags2 not useful to save, but is in between flags and flags3, so...
-    eeFlags2
-    eeFlags3
-
-    eeSparkLevelNotch       ; NOTE: keep eeSparkLevelNotch and eeSparkLevelWall contiguous
-    eeSparkLevelWall
-
-    eePWMDutyCycleHiByte    ; NOTE: keep PWM values contigious
-    eePWMDutyCycleLoByte
-    eePWMPeriod
-    eePWMPolarity
-    eePWMCheckSum
-
-
- endc
-
-; end of Variables in EEprom
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
 ; Power On and Reset Vectors
 ;
 
@@ -904,7 +609,32 @@ start:
 
 menuLoop:
 
-    call    doExtModeMenu   ; display and handle the Standard / Extended Mode menu
+;debug mks    
+
+    banksel flags2
+    bsf     flags2, LCD_REG_SEL     ; select the LCD's data register
+    
+    movlw   'T'                     ; write 'T' to the LCD display
+    call    sendNybblesToLCDViaI2C
+        
+    banksel flags2
+    bcf     flags2, LCD_REG_SEL     ; select the LCD's instruction register
+    
+    movlw   LCD_SETDDRAMADDR | 0x40 ; move to row 2, col 1
+
+    banksel flags2
+    bsf     flags2, LCD_REG_SEL     ; select the LCD's data register
+    
+    movlw   '1'                     ; write '1' to the LCD display
+    call    sendNybblesToLCDViaI2C
+    
+    
+debugLoop:
+    goto    debugLoop
+    
+;debug mks end    
+    
+    
     
     call    doMainMenu      ; display and handle the main menu
 
@@ -957,183 +687,6 @@ trapSwitchInputs:
 ;--------------------------------------------------------------------------------------------------
     
 ;--------------------------------------------------------------------------------------------------
-; setHighCurrentLimitDigitalPot
-;
-; Sets the digital pot value for the high current limit comparator to the value in hiCurrentLimit.
-;
-
-setHighCurrentLimitDigitalPot:
-
-    banksel hiCurrentLimitPot
-    movf    hiCurrentLimitPot,W
-
-    banksel scratch0
-    movwf   scratch1                ; the pot value
-    movlw   HI_LIMIT_POT_ADDR
-    movwf   scratch0
-
-    goto    setDigitalPotInChip1
-
-; end of setHighCurrentLimitDigitalPot
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; setLowCurrentLimitDigitalPot
-;
-; Sets the digital pot value for the low current limit comparator to the value in loCurrentLimit.
-;
-
-setLowCurrentLimitDigitalPot:
-
-    banksel loCurrentLimitPot
-    movf    loCurrentLimitPot,W
-
-    banksel scratch0
-    movwf   scratch1                ; the pot value
-    movlw   LO_LIMIT_POT_ADDR
-    movwf   scratch0
-
-    goto    setDigitalPotInChip1
-
-; end of setLowCurrentLimitDigitalPot
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; saveDepthValueToEEprom
-;
-; Saves the user set cut depth value from eeprom. These are BCD digits.
-;
-; Note: these variables must be kept contiguous in memory and eeprom.
-;
-
-saveDepthValueToEEprom:
-
-    banksel eeTarget3
-
-    movlw   high target9     ; address in RAM
-    movwf   FSR0H
-    movlw   low target9
-    movwf   FSR0L
-        
-    clrf    eepromAddressH
-    movlw   eeTarget3        ; address in EEprom
-    movwf   eepromAddressL
-    movlw   .4
-    movwf   eepromCount     ; write 4 bytes
-    call    writeToEEprom
-
-    return
-
-; end of saveDepthValueToEEprom
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; saveSparkLevelsToEEprom
-;
-; Saves the spark Wall/Notch aggression/speed values to eeprom.
-;
-; Note: these variables must be kept contiguous in memory and eeprom.
-
-saveSparkLevelsToEEprom:
-
-    banksel sparkLevelNotch
-
-    movlw   high sparkLevelNotch     ; address in RAM
-    movwf   FSR0H
-    movlw   low sparkLevelNotch
-    movwf   FSR0L
-        
-    clrf    eepromAddressH
-    movlw   eeSparkLevelNotch   ; address in EEprom
-    movwf   eepromAddressL
-    movlw   .2
-    movwf   eepromCount         ; write 2 bytes
-    call    writeToEEprom
-
-    return
-
-; end of saveSparkLevelsToEEprom
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; saveFlagsToEEprom
-;
-; Saves the flags, flags2, and flags3 values to eeprom.
-;
-; The flags2 variable does not contain values which need to be saved, but it is between flags
-; and flags3 so it is easier to save it than to skip it. 
-;
-
-saveFlagsToEEprom:
-
-    banksel flags
-
-    movlw   high flags      ; address in RAM
-    movwf   FSR0H
-    movlw   low flags
-    movwf   FSR0L
-    
-    clrf    eepromAddressH
-    movlw   eeFlags         ; address in EEprom
-    movwf   eepromAddressL
-    movlw   .3
-    movwf   eepromCount     ; write 3 bytes
-    call    writeToEEprom
-
-    return
-
-; end of saveFlagsToEEprom
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; savePWMValuesToEEprom
-;
-; Saves PWM module time period and duty cycle and output polarity values to the eeprom.
-;
-; These values are sent to the LED PIC to specify the period and duty cycle of the pulse
-; controlling the on/off times of the cutting current.
-;
-; Before saving, the bytes are added together to create a checksum which is also stored in the
-; eeprom. This allows the reading function to verify that the values are valid and also that the
-; eeprom was not empty and the values had never been stored.
-;
-; The value of 1 is added to the checksum to catch cases where the eeprom values have never been
-; set and are all zeros in which case the data bytes would sum to zero and then match the zero
-; value also read for the checksum -- this would make the zero values appear to be valid. Adding
-; 1 means the checksum would also have to be 1 to create a match, which is possible if eeprom is
-; filled with random values but not as likely as an all zero case.
-;
-
-savePWMValuesToEEprom:
-    
-    banksel pwmDutyCycleHiByte
-
-    clrw                                ; calculate the checksum for all PWM values
-    addwf   pwmDutyCycleHiByte,W
-    addwf   pwmDutyCycleLoByte,W
-    addwf   pwmPeriod,W
-    addwf   pwmPolarity,W
-    addlw   1                           ; see note in function header
-    movwf   pwmCheckSum
-
-    movlw   high pwmDutyCycleHiByte     ; address in RAM
-    movwf   FSR0H
-    movlw   low pwmDutyCycleHiByte      ; address in RAM
-    movwf   FSR0L
-  
-    clrf    eepromAddressH
-    movlw   eePWMDutyCycleHiByte        ; address in EEprom
-    movwf   eepromAddressL
-    movlw   .5
-    movwf   eepromCount                 ; write 4 bytes
-    call    writeToEEprom
-
-    return
-
-; end of savePWMValuesToEEprom
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
 ; flipSign
 ;
 ; Flips the sign (positive to negative or vice verse) of the word in scratch1:scratch0
@@ -1182,8 +735,6 @@ flipSign:
 
 processIO:
 
-    call    sendOutputStatesIfReady ; send output states to remote devices if xmt buffer is ready    
-    
 processIOQ:    
     
     banksel switchStates
@@ -1257,126 +808,6 @@ wUIRLoop:
 ; end of waitUntilIORefresh
 ;--------------------------------------------------------------------------------------------------
     
-;--------------------------------------------------------------------------------------------------
-; sendOutputStatesIfReady
-;
-; Sends output state data when the serial transmit buffer is empty. A counter is used to limit the
-; rate at which the data is sent to avoid overrunning the remotes with data.
-;
-; Sets up buffer for a SET_OUTPUTS_CMD and adds appropriate data. The data in the buffer is then
-; begun to be transmitted.
-;
-; Waits for transmission to be completed.
-;
-; Sets up the serial transmission buffer in preparation for the next printString (LCD_BLOCK_CMD
-;  packet).
-;
-; Since LCD_BLOCK_CMD packets the most common packet sent and the buffer must be prepared for
-; various data insertions, this function leaves the buffer prepared for that packet type.
-;
-; Call sendOutputStatesIfReadyQ to force a send without regard to the send rate control timer.
-;
-; On entry:
-;
-; FSR1 points to the desired string
-;
-
-sendOutputStatesIfReady:
-
-    banksel flags                   ; only send when counter reaches zero to limit send rate
-    decfsz  xmtDataTimer,F
-    return
-
-sendOutputStatesIfReadyQ:
-    
-    banksel serialXmtBufNumBytes    ; exit if buffer busy
-    movf    serialXmtBufNumBytes,W
-    btfsc   STATUS,Z
-    goto    sendSOSIR
-    
-    movlw   .1                      ; if timed out but buffer was busy, set to 1 so there will not
-    movwf   xmtDataTimer            ; be another delay and the data will be transmitted the next
-    return                          ; time the buffer is ready
-    
-sendSOSIR:    
-
-    movlw   0x10                    ; flip the send packet type selector bit
-    xorwf   flags2,F
-
-    movlp   high sendOutputStates
-    call    sendOutputStates
-    movlp   high sendOutputStatesIfReady
-
-    banksel flags3
-    btfsc   flags3,TIME_CRITICAL    ; do not wait or set up buffer if time critical flag set
-    return
-    
-    call    waitSerialXmtComplete   ; wait until buffer printed
-
-    call    setupLCDBlockPkt        ; prepare xmt buffer for the next block transmit
-    
-    return
-
-; end of sendOutputStatesIfReady
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; zeroTarget
-;
-; Zeroes the target depth variable.
-;
-; On entry:
-;
-
-zeroTarget:
-    
-    movlw   high target10
-    movwf   FSR0H
-    movlw   low target10
-    movwf   FSR0L
-    
-    goto    zeroVariable
-    
-; end of zeroTarget
-;--------------------------------------------------------------------------------------------------
-    
-;--------------------------------------------------------------------------------------------------
-; zeroDepth
-;
-; Zeroes the depth position variable.
-;
-; On entry:
-;
-
-zeroDepth:
-
-    movlw   high depth10
-    movwf   FSR0H
-    movlw   low depth10
-    movwf   FSR0L
-
-zeroVariable:
-    
-    clrw                    ; W = 0
-
-    movwi   FSR0++
-    movwi   FSR0++
-    movwi   FSR0++
-    movwi   FSR0++
-    movwi   FSR0++
-    movwi   FSR0++
-    movwi   FSR0++
-    movwi   FSR0++
-    movwi   FSR0++
-    movwi   FSR0++
-    movwi   FSR0++
-    movwi   FSR0++          ; clear sign
-
-    return
-
-; end of zeroDepth
-;--------------------------------------------------------------------------------------------------
-
 ;--------------------------------------------------------------------------------------------------
 ; setupLCDBlockPkt
 ;
@@ -1490,161 +921,6 @@ waitXmtPrep:
 ;--------------------------------------------------------------------------------------------------
 
 ;--------------------------------------------------------------------------------------------------
-; doExtModeMenu
-;
-; Displays and handles the Standard / Extended depth mode menu.
-;
-; If doExtModeMenu is called, the menu is displayed with option 1 highlighted.
-; If doExtModeMenuA is called, the cursorPos and menuOption should be preloaded by the calling
-;  function to set the default highlighted option.
-;
-; Menu display:
-;
-; "OPT AutoNotcher x.x"
-;
-; 0x1, 0xC0
-; "CHOOSE CONFIGURATION"
-;
-; 0x1, 0x94
-; "1 - EDM Notch Cutter"
-;
-; 0x1, 0xd4
-; "2 - EDM Extend Reach"
-;
-; 0x1, 0x94
-; Carriage Return
-;
-; It then processes user input.
-;
-; NOTE: LCD addressing is screwy - second line first column is 0xC0, third line is 0x94,
-;       fourth line is 0xd4.
-;
-
-doExtModeMenu:
-
-    ; call here to default to option 1
-
-    movlw   LINE3_COL1      ; set display position
-    movwf   cursorPos       ; option 1 highlighted
-    movlw   0x1
-    movwf   menuOption      ; option 1 currently selected
-
-doExtModeMenuA:				; call here if default option has already been set by caller
-
-;print the strings of the menu
-
-    movlp   high setupLCDBlockPkt    
-    call    setupLCDBlockPkt    ; prepare block data packet for LCD
-    
-    movlw   high string0   ; "OPT AutoNotcher x.x"
-    movwf   FSR1H
-    movlw   low string0
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-    
-    movlw   LINE2_COL1      ; set display position
-    call    writeControl
-    movlw   high string1    ; "CHOOSE CONFIGURATION"
-    movwf   FSR1H
-    movlw   low string1
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-    
-    movlw   LINE3_COL1      ; set display position
-    call    writeControl
-    movlw   high string2    ; "1 - EDM Notch Cutter"
-    movwf   FSR1H
-    movlw   low string2
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-    movlw   LINE4_COL1      ; set display position
-    call    writeControl
-    movlw   high string3    ; "2 - EDM Extend Reach"
-    movwf   FSR1H
-    movlw   low string3
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-; position the cursor on the default selection
-    
-    movf    cursorPos,W		; load the cursor position to highlight the current choice
-    call    writeControl
-    call    turnOnBlink
-    call    flushXmtWaitPrep    ; force the buffer to print and wait until done then prep for next
-
-; scan for button inputs, highlight selected option, will return when Reset/Enter/Zero pressed
-
-LoopDEMM1:
-
-    bcf		menuOption,7		; clear the menu page change flags
-    bcf		menuOption,6
-
-    movlw   .02                 ; maximum menu option number
-    call    handleMenuInputs
-
-; parse the selected option ---------------------------------------------------
-
-    movf    menuOption,W       
-    
-    movwf   scratch0
-    
-    decfsz  scratch0,F
-    goto    skipDEMM6
-
-    ; handle option 1 - standard reach cutting head installed
-
-    bcf     flags,EXTENDED_MODE ; set flag to 0
-
-    movlp   high setStepDistance
-    call    setStepDistance
-    movlp   high exitDEMM
-    
-    ; standard head delay values
-    
-    movlw   .32
-    movwf   setupDelay
-    movlw   .100
-    movwf   normDelay
-
-    goto    exitDEMM
-   
-skipDEMM6:
-
-    decfsz  scratch0,F
-    goto    skipDEMM7
-
-    ; handle option 2 - extended reach cutting head installed
-
-    bsf     flags,EXTENDED_MODE ; set flag to 1    
-    
-    movlp   high setStepDistance
-    call    setStepDistance
-    movlp   high exitDEMM   
-    
-    ; extended head delay values
-
-    movlw   .4
-    movwf   setupDelay
-    movlw   .12
-    movwf   normDelay
-    
-    goto    exitDEMM
-
-skipDEMM7:
-	
-	; this part reached if a menu page change flag bit is set in menuOption
-	; since there is only one page for this menu, ignore
-	goto	LoopDEMM1
-
-exitDEMM:
-    
-    return    
-
-; end of doExtModeMenu
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
 ; doMainMenu
 ;
 ; Displays and handles the main menu page 1.  If the user moves cursor down while on bottom option
@@ -1653,22 +929,6 @@ exitDEMM:
 ; If doMainMenu is called, the menu is displayed with option 1 highlighted.
 ; If doMainMenuA is called, the cursorPos and menuOption should be preloaded by the calling
 ;  function to set the default highlighted option.
-;
-; Screen displayed:
-;
-; "OPT EDM Notch Cutter"
-;
-; 0x1, 0xc0
-; "1 - Set Cut Depth" or "1 - Depth = "
-;
-; 0x1, 0x94
-; "2 - Cut Notch"
-;
-; 0x1, 0xd4
-; "3 - Jog Electrode"
-;
-; 0x1, 0xc0
-; Carriage Return (to place cursor on first option)
 ;
 ; It then processes user input.
 ;
@@ -1693,77 +953,18 @@ doMainMenuA:				; call here if default option has already been set by caller
 
     call    clearScreen     ; clear the LCD screen (next print will flush this to LCD)
     
-    btfsc  flags,EXTENDED_MODE  ; check for extended mode
-    goto    extendedModeDMM
-
-; display the menu header for standard mode
-
     movlw   high string4   ; "OPT EDM Notch Cutter"
     movwf   FSR1H
     movlw   low string4
     movwf   FSR1L
     call    printStringWaitPrep     ; print the string and wait until done
-    goto    skipDMM    
-
-extendedModeDMM:
-
-; display the menu header for extended mode
-
-    movlw   high string13   ; "OPT EDM Extend Reach"
-    movwf   FSR1H
-    movlw   low string13
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-skipDMM:
-
-; if target depth not already set (=0), display this string
 
     movlw   LINE2_COL1      ; set display position
     call    writeControl
 
-    call    isTargetZero    ; is target variable zero?
-    btfss   STATUS,Z
-    goto    skipString5     ; if not zero, jump to display the target
-
-    movlw   high string5  ; "1 - Set Cut Depth"
+    movlw   high string5  ; "1 - ????"
     movwf   FSR1H
     movlw   low string5
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-    goto    skipString6
-
-; if target depth already set (!=0), display the target depth value
-
-skipString5:
-
-    movlw   high string6            ; "1 - Depth = "
-    movwf   FSR1H
-    movlw   low string6
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-    
-    call    displayTarget           ; display the target depth to cut
-    call    flushXmtWaitPrep    ; force the buffer to print and wait until done then prep for next
-
-skipString6:
-
-    movlw   LINE3_COL1      ; set display position
-    call    writeControl
-
-    movlw   high string7    ; "2 - Cut Notch"
-    movwf   FSR1H
-    movlw   low string7
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-    movlw   LINE4_COL1      ; set display position
-    call    writeControl
-
-    movlw   high string8    ; "3 - Jog Electrode"
-    movwf   FSR1H
-    movlw   low string8
     movwf   FSR1L
     call    printStringWaitPrep     ; print the string and wait until done
 
@@ -1781,7 +982,7 @@ loopDMM1:
 
 ; scan for button inputs, highlight selected option, will return when Reset/Enter/Zero pressed
 
-    movlw   .03                 ; maximum menu option number
+    movlw   .02                 ; maximum menu option number
     call    handleMenuInputs
 
 ; parse the selected option ---------------------------------------------------
@@ -1792,10 +993,8 @@ loopDMM1:
     decfsz  scratch0,F
     goto    skipDMM1
 
-    ; handle option 1 - set cut depth
+    ; handle option 1 - DO SOMETHING HERE
     
-    call    setTarget        ; allow user to adjust the depth value
-
     goto    doMainMenu      ; repeat main menu
 
     return 
@@ -1803,29 +1002,13 @@ loopDMM1:
 skipDMM1:
 
     decfsz  scratch0,F
-    goto    skipDMM2
+    goto    skipDMM3
 
-    ; handle option 2 - Cut Notch
+    ; handle option 2 - DO SOMETHING HERE
 
-	; flag is ignored because this was a pain - better to be able to zero after a cut - can start a new
-	; cut this way without powering down
-    bsf     flags,CUT_STARTED ; set flag that cut started so unit cannot be zeroed
-
-    call    cutNotch		; start the auto notch cut function
 
     goto    doMainMenu      ; repeat main menu
     
-skipDMM2:
-
-    decfsz  scratch0,F
-    goto   	skipDMM3
-
-    ; handle option 3 - Jog Electrode
-
-    call    jogMode         ; allow user to manually position the height of the cutting blade
-
-    goto    doMainMenu      ; repeat main menu
-
 skipDMM3:
 
 	btfsc	menuOption,7
@@ -1852,20 +1035,6 @@ skipDMM3:
 ; If doMainMenuPage2A is called, the cursorPos and menuOption should be preloaded by the calling
 ;  function to set the default highlighted option.
 ;
-; Screen displayed:
-;
-; 0x1, 0x80
-; "4 - Cycle Test"
-;
-; 0x1, 0xc0
-; "5 - Motor Dir Normal" or "5 - Motor Dir Reverse"
-;
-; 0x1, 0x94
-; "6 - Erosion None" or "6 - Erosion 17%"
-;
-; 0x1, 0x80
-; Carriage Return (to place cursor on first option)
-;
 ; It then processes user input.
 ;
 ; NOTE: LCD addressing is screwy - second line first column is 0xC0, third line is 0x94,
@@ -1891,12 +1060,6 @@ doMainMenuPage2A:			; call here if selected option has already been set by calle
 
 ; display the first option
 
-    movlw   high string21   ; "4 - " prefix so can re-use "Cycle Test" string
-    movwf   FSR1H
-    movlw   low string21
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-    
     movlw   high string19   ; "Cycle Test"
     movwf   FSR1H
     movlw   low string19
@@ -1913,91 +1076,6 @@ doMainMenuPage2A:			; call here if selected option has already been set by calle
     movlw   low string20
     movwf   FSR1L
     call    printStringWaitPrep     ; print the string and wait until done
-
-    btfsc  	flags,MOTOR_DIR_MODE    ; check for reverse motor direction
-	goto	revDirDMMP2
-
-    movlw   high string22   ; add "Normal" suffix to motor dir line
-    movwf   FSR1H
-    movlw   low string22
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-    goto    option3DMMP2
-
-revDirDMMP2:
-
-    movlw   high string23   ; add "Reverse" suffix to motor dir line
-    movwf   FSR1H
-    movlw   low string23
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-; display the third option
-
-option3DMMP2:
-
-    movlw   LINE3_COL1      ; set display position
-    call    writeControl
-
-    movlw   high string24   ; "6 - Erosion "
-    movwf   FSR1H
-    movlw   low string24
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-    btfsc  	flags3,EROSION_MODE    ; check erosion mode
-	goto	useErosionDMMP2
-
-    movlw   high string26           ; add "None" suffix to erosion line
-    movwf   FSR1H
-    movlw   low string26
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-    goto    option4DMMP2
-
-useErosionDMMP2:
-
-    movlw   high string27   ; add "17%" suffix to erosion line
-    movwf   FSR1H
-    movlw   low string27
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-    
-; display the fourth option
-
-option4DMMP2:
-
-    movlw   LINE4_COL1      ; set display position
-    call    writeControl
-
-    movlw   high string25           ; "7 - Alarm "
-    movwf   FSR1H
-    movlw   low string25
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-    btfsc  	flags3,ALARM_ENABLED    ; check mode flag
-	goto	alarmDisabledDMMP2
-
-    movlw   high string28           ; add "Off" suffix
-    movwf   FSR1H
-    movlw   low string28
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-    goto    placeCursorDMMP2
-
-alarmDisabledDMMP2:
-
-    movlw   high string29           ; add "On"
-    movwf   FSR1H
-    movlw   low string29
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-placeCursorDMMP2:
     
 ;position the cursor on the default selection
 
@@ -2016,7 +1094,7 @@ loopDMMP21:
 ; way to the bottom where those bits are checked and handled. The bits could be checked at the
 ; beginning instead?
 
-    movlw   .04                 ; maximum menu option number
+    movlw   .02                 ; maximum menu option number
     call    handleMenuInputs
 
 ; parse the selected option ---------------------------------------------------
@@ -2025,84 +1103,19 @@ loopDMMP21:
     movwf   scratch0
 
     decfsz  scratch0,F
-    goto    skipDMMP21
+    goto    skipDMMP27
 
-    ; handle option 4 - Cycle Test (menuOption value is 1)
+    ; handle option 1 - DO SOMETHING HERE
     
-    call    cycleTest       ; enter the "Cycle Test" function
-
     goto    doMainMenuPage2 ; refresh menu
  
-skipDMMP21:
-
-    decfsz  scratch0,F
-    goto    skipDMMP24
-
-    ; handle option 5 - Motor Direction Change (menuOption value is 2)
-
-    btfss	flags,MOTOR_DIR_MODE    ; motor direction is reverse?
-	goto	skipDMMP23
-
-	bcf		flags,MOTOR_DIR_MODE    ; set motor direction to normal
-	call    saveFlagsToEEprom       ; save the new setting to EEprom
-    goto    doMainMenuPage2         ; refresh menu
-
-skipDMMP23:
-
-	bsf		flags,MOTOR_DIR_MODE	; set motor direction to reverse
-    call    saveFlagsToEEprom       ; save the new setting to EEprom
-    goto    doMainMenuPage2         ; refresh menu
-
-skipDMMP24:
-
-    decfsz  scratch0,F
-    goto    skipDMMP26
-
-    ; handle option 6 - Erosion Change (menuOption value is 3)
-
-    btfss	flags3,EROSION_MODE     ; erosion factor is 17%?
-	goto	skipDMMP25
-
-	bcf		flags3,EROSION_MODE     ; set erosion factor to none
-    
-    movlp   high setStepDistance
-    call    setStepDistance
-    
-    movlp   high saveFlagsToEEprom
-    call    saveFlagsToEEprom       ; save the new setting to EEprom
-    
-    goto    doMainMenuPage2         ; refresh menu
-
-skipDMMP25:
-
-	bsf		flags3,EROSION_MODE     ; set erosion mode to 17%
-
-    movlp   high setStepDistance
-    call    setStepDistance
-    
-    movlp   high saveFlagsToEEprom
-    call    saveFlagsToEEprom       ; save the new setting to EEprom
-
-    goto    doMainMenuPage2         ; refresh menu
-
-skipDMMP26:
+skipDMMP27:
 
     decfsz  scratch0,F
     goto    skipDMMP28
 
-    ; handle option 7 - Alarm (menuOption value is 4)
+    ; handle option 2 - DO SOMETHING HERE
 
-    btfss	flags3,ALARM_ENABLED    ; Alarm on?
-	goto	skipDMMP27
-
-	bcf		flags3,ALARM_ENABLED    ; set to off
-	call    saveFlagsToEEprom
-    goto    doMainMenuPage2         ; refresh menu
-
-skipDMMP27:
-
-	bsf		flags3,ALARM_ENABLED    ; set to on
-    call    saveFlagsToEEprom
     goto    doMainMenuPage2         ; refresh menu
 
 skipDMMP28:
@@ -2111,7 +1124,7 @@ skipDMMP28:
 	goto	skipDMMP29
 
 	;go back to previous menu with last option defaulted	
-    movlw   LINE4_COL1      ; set display position
+    movlw   LINE2_COL1      ; set display position
     movwf   cursorPos
     movlw   0x3
     movwf   menuOption      ; last option currently selected
@@ -2128,1126 +1141,6 @@ skipDMMP29:
 	goto	doMainMenuPage2
     
 ; end of doMainMenuPage2
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; cutNotch
-;
-; Automatically cuts the notch.  Moves the cutting blade down until the over-current limit input
-; triggers then moves head back up until limit condition is removed.
-;
-; NOTE: The system monitors the voltage of the cutting supply, NOT the current.  When the voltage
-; is high, the current must be low so the blade is lowered.  When the voltage is low, the current
-; must be high so the blade is raised.  This makes some of the logic appear to be backwards if
-; it is erroneously assumed that the current is being monitored instead of the voltage.
-;
-; The user can adjust the agressiveness of the advance using the "Jog Up" and "Jog Down" buttons.
-; This affects the time between sparks to trigger an advance.
-;
-; NOTE: If the cutting power supply is turned off, the head will be raised due to the fact that
-;       the voltage appears to be low.
-;
-; On entry:
-;
-; position contains current height of the cutting blade
-; depth contains the desired depth of the cut
-;
-; For notch cutting mode switch out the smart code on retract.
-;
-; For wall reduction cutting mode, switch in the smart code on retract.
-; A good value for the overCurrentTimer retract is 1fff (hard coded).
-;
-; This function does not disable switch debouncing like the jogMode function. Since the Up/Down
-; switch is used to adjust values during the cut, it must be debounced. It does enable the
-; TIME_CRITICAL flag to prevent data transmissions from waiting until completion so that they
-; occur in the background.
-;
-
-cutNotch:
-    
-    call    waitUntilIORefresh    ; make sure all buttons released to avoid errant response
-    
-    banksel flags3
-    bsf     flags3,TIME_CRITICAL ; configure functions to minimize waits and delays
-        
-    call    setupLCDBlockPkt    ; prepare block data packet for LCD
-    
-    call    clearScreen     ; clear the LCD screen
-
-    movlw   high string14   ; "Turn on Cut Voltage"
-    movwf   FSR1H
-    movlw   low string14
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-    call    setupCutNotchAndCycleTest	; finish the screen setup
-
-    bcf     flags,AT_DEPTH  ; clear the depth reached flag
-
-    movlw   ' '				; these variables store the direction symbol (an asterisk)
-    movwf   scratch7		; for display to show which direction the head is going
-    movlw   ' '				; clear them so garbage won't be displayed first time through
-    movwf   scratch8
-
-    call    handlePowerSupplyOnOff  ; turn cutting current power supply on/off per switch setting
-
-    movlw   .255            ; delay to allow the power supply to stabilize
-    call    msDelay
-    movlw   .255
-    call    msDelay
-    
-cutLoop:
-
-    call    handleFastIO            ; set switch flags, display depth, and send output states
-
-    btfss   switchStates,SELECT_SW_FLAG
-    goto    exitCN                  ; exit the notch cutting mode if the Select button pressed
-
-    btfsc   flags,AT_DEPTH          ; displayPosLUCL sets flags:AT_DEPTH if target reached
-    goto    exitCN
-
-checkUPDWNButtons:
-    
-    btfss   switchStates,JOG_UP_SW_FLAG
-    call    adjustSpeedOrPowerUp   ; increment the speed (sparkLevel) value or Power Level
-
-    btfss   switchStates,JOG_DOWN_SW_FLAG
-    call    adjustSpeedOrPowerDown ; decrement the speed (sparkLevel) value or Power Level
-
-checkHiLimit:
-
-    call    sparkTimer
-    btfss   STATUS,Z
-    goto    checkLoLimit
-
-moveDownLUCL:
-
-; voltage too high (current too low) - move cutting blade down
-
-    call    incDepth        ; going down increments the position by one step distance
-
-    movlw   ' '
-    movwf   scratch7
-    movlw   '*'
-    movwf   scratch8        ; display asterisk by "Down" label
-
-    call    pulseMotorDownWithDelay  	; move motor one step
-                                 		; no delay before stepping because enough time wasted above
-
-checkLoLimit:
- 
-    btfsc   flags,WALL_MODE         ; no retract smart code for notch, use it for Wall (see header notes)
-    goto    wallModeCN
-
-notchModeCN:                        ; next two lines for notch mode
-    
-    btfsc   LO_LIMIT_P,LO_LIMIT     ; is voltage too low? (current too high)
-    goto    cutLoop
-    goto    moveUpLUCL              ; time to retract
-
-wallModeCN:                         ; next two lines for wall reduction mode
-   
-    call    overCurrentTimer
-    btfss   STATUS,Z
-    goto    cutLoop
-
-moveUpLUCL:
-
-; voltage too low (current too high) - move cutting blade up
-
-    call    pulseMotorUpWithDelay  	; move motor one step - delay to allow motor to move
-
-    call    decDepth				; going up decrements the position by one step distance
-
-    movlw   '*'
-    movwf   scratch7                ; display asterisk by "Up" label
-    movlw   ' '
-    movwf   scratch8
-
-; enter a fast loop without much overhead to retract quickly until over-current is gone
-
-quickRetractCN:
-
-    call    handleFastIO            ; set switch flags, display depth, and send output states
-
-    btfss   switchStates,SELECT_SW_FLAG
-    goto    exitCN                  ; exit the notch cutting mode if the Select button pressed
-
-    call    pulseMotorWithDelay    	; move motor one step - delay to allow motor to move
-    
-    call    decDepth				; going up decrements the position by one step distance
-
-    banksel LO_LIMIT_P
-
-    btfss   LO_LIMIT_P,LO_LIMIT     ; check again, loop quickly until current is within
-    goto    quickRetractCN          ; limits to avoid glow plugging
-    
-    goto    cutLoop
-
-displayPosLUCL:             		; updates the display if it is time to do so
-
-    banksel serialXmtBufNumBytes    ; update the display if serial transmit not in progress
-    movf    serialXmtBufNumBytes,W
-    btfss   STATUS,Z
-    goto    checkPositionCN 		; don't display if print buffer not ready      
-
-    banksel flags
-
-    movlw   0x10                    ; flip the send packet type selector bit
-    xorwf   flags2,F
-        
-    bcf     flags,UPDATE_DISPLAY 	; clear flag so no update until data changed again
-
-    ; display asterisk at "Up" or "Down" label depending on blade direction or erase if no movement
-
-    call    setupLCDBlockPkt    ; prepare block data packet for LCD
-
-    movlw   LINE2_COL1      ; set display position
-    call    writeControl
-    movf    scratch7,W
-    call    writeChar       ; write asterisk or space by "Up" label
-    movlw   LINE3_COL1      ; set display position
-    call    writeControl
-    movf    scratch8,W
-    call    writeChar       ; write asterisk or space by "Down" label
-
-    call    displaySpeedAndPower    ; display the current advance speed and power level
-
-    movlw   LINE4_COL12     ; set display position
-    call    writeControl
-    call    displayPos      ; display the location of the head relative to the zero point
-    movlp   high startSerialPortTransmit
-    call    startSerialPortTransmit ; force buffer to print, don't wait due to time criticality
-
-    movlp   high checkPositionCN
-
-checkPositionCN:        ; compare position with desired cut depth, exit when reached
-
-    call    isDepthGreaterThanOrEquToTarget
-    banksel flags
-    bcf     flags,AT_DEPTH
-    btfsc   STATUS,C
-    bsf     flags,AT_DEPTH  ; if isDepthGreaterThanTarget returned C=1, depth reached so set flag
-
-    return                  ; NOTE: this returns from displayPosLUCL, NOT cutNotch! 
-
-exitCN:
-
-    banksel POWER_ON_L
-    bcf     POWER_ON_L,POWER_ON    ; turn off the cutting voltage
-
-    banksel flags
-    bcf     flags3,TIME_CRITICAL    ; configure functions for normal waits and delays
-        
-    call    waitXmtPrep            ; wait until buffer printed
-
-    banksel flags
-    btfsc   flags,DATA_MODIFIED     ; if data has been modified, save to eeprom
-    call    saveSparkLevelsToEEprom
-
-    bcf     flags,DATA_MODIFIED
-
-    return
-
-; end of cutNotch
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; handlePowerSupplyOnOff
-;
-; Turns the Cutting Current power supply on or off depending on the state of the Electrode switch.
-;
-
-handlePowerSupplyOnOff:
-    
-    btfss   switchStates,ELECTRODE_PWR_SW_FLAG
-    goto    psIsOff
-    
-    banksel POWER_ON_L
-    bsf     POWER_ON_L,POWER_ON    ; turn on the cutting voltage
-
-    banksel flags
-    return
-    
-psIsOff:    
-
-    banksel POWER_ON_L
-    bcf     POWER_ON_L,POWER_ON    ; turn on the cutting voltage
-
-    banksel flags
-    return
-        
-; end of handlePowerSupplyOnOff
-;--------------------------------------------------------------------------------------------------
-        
-;--------------------------------------------------------------------------------------------------
-; setupCutNotchAndCycleTest
-;
-; Prepares the screen for the cutNotch and cycleTest functions.  These share nearly identical
-; screens.
-;
-
-setupCutNotchAndCycleTest:
-
-    movlw   LINE2_COL2      ; set display position
-    call    writeControl
-
-    movlw   high string15   ; "Up Speed>"
-    movwf   FSR1H
-    movlw   low string15
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-    call    displaySpeedAndPower    ; display the current advance speed and power level
-    call    flushXmtWaitPrep    ; force the buffer to print and wait until done then prep for next
-
-    movlw   LINE3_COL2          ; set display position
-    call    writeControl
-
-    movlw   high string16   ; "Down  Stop>"
-    movwf   FSR1H
-    movlw   low string16
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-    call    displayTarget   ; display the target depth to cut
-
-    movlw   0x22
-    call    writeChar       ; write '"' for inch mark
-
-    movlw   LINE4_COL18     ; set display position
-    call    writeControl
-    movlw   0x22
-    call    writeChar       ; write '"' for inch mark
-
-    movlw   LINE4_COL12     ; set display position
-    call    writeControl
-    call    displayPos      ; display the location of the head relative to the zero point
-
-    call    flushXmtWaitPrep    ; force the buffer to print and wait until done then prep for next
-
-    return
-
-; end of setupCutNotchAndCycleTest
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; cycleTest
-;
-; Performs a test to verify the proper operation of the system.  The head is lowered until the
-; high current limit is inactive - this occurs when the blade nearly touches the pipe and
-; current begins to flow.  The head is then retracted back to the original position.  This cycle
-; is repeated until the user exits the test.  With each touchdown, only a tiny cut is made so the
-; depth should only change very slowly after many touchdowns.
-;
-; For the best test, the operator should use the jog mode to raise the head as high as possible
-; so that the maximum range is used in each cycle.
-;
-; NOTE: The system monitors the voltage of the cutting supply, NOT the current.  When the voltage
-; is high, the current must be low so the blade is lowered.  When the voltage is low, the current
-; must be high so the blade is raised.  This makes some of the logic appear to be backwards if
-; it is erroneously assumed that the current is being monitored instead of the voltage.
-;
-; Although the target depth to cut and the cutting speed labels are displayed, they are not
-; used by this function.
-;
-; NOTE: If the cutting power supply is turned off, the head will be raised due to the fact that
-;       the voltage appears to be low.
-;
-; This function does not disable switch debouncing like the jogMode function as it does not
-; monitor the inputs. It does enable the TIME_CRITICAL flag to prevent data transmissions from
-; waiting until completion so that they occur in the background.
-;
-; On entry:
-;
-; On exit:
-;
-
-cycleTest:
-
-    call    waitUntilIORefresh    ; make sure all buttons released to avoid errant response
-    
-    banksel flags3
-    bsf     flags3,TIME_CRITICAL ; configure functions to minimize waits and delays
-    
-    call    setupLCDBlockPkt    ; prepare block data packet for LCD    
-
-    call    clearScreen     ; clear the LCD screen
-
-    movlw   high string19   ; "Cycle Test"
-    movwf   FSR1H
-    movlw   low string19
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-	call	setupCutNotchAndCycleTest	; finish the screen setup
-
-    movlw   ' '				; these variables store the direction symbol (an asterisk)
-    movwf   scratch7		; for display to show which direction the head is going
-    movlw   ' '				; clear them so garbage won't be displayed first time through
-    movwf   scratch8
-
-    call    handlePowerSupplyOnOff  ; turn cutting current power supply on/off per switch setting
-
-    movlw   .255            ; delay to allow the power supply to stabilize
-    call    msDelay
-    movlw   .255
-    call    msDelay
-
-restartCycleCT:
-
-    movlw   .0				; clear the cycle distance counter to track distance lowered
-    movwf   cycleTestRetract0
-	movwf   cycleTestRetract1
-
-cycleLoopCT:
-
-    call    handleFastIO            ; set switch flags, display depth, and send output states
-
-    btfss   switchStates,SELECT_SW_FLAG
-    goto    exitCT          ; exit the notch cutting mode if the Select button pressed
-            
-checkHiLimitCT:
-
-    btfsc   HI_LIMIT_P,HI_LIMIT     ; is voltage too high? (current too low, not touching yet)
-    goto    upCycleCT             	; voltage drop - blade touching - begin up cycle
-									; unlike the cutNotch function, the blade never sits still
-
-moveDownCT:
-
-; voltage too high (current too low, not touching yet) - move cutting blade down
-
-	;count how many ticks the blade travels down before touchdown - on the up cycle this
-	;count will be used to stop the blade in approximately the original start position
-	;each time - as a cut is made, the up and down positions will move down slowly
-    
-	incf	cycleTestRetract0,F	; increment low byte ~ see note "incf vs decf rollover"
-    btfsc   STATUS,Z
-	incf	cycleTestRetract1,F	; increment high byte
-
-    call    incDepth            ; going down increments the position by one step distance
-
-    movlw   ' '
-    movwf   scratch7
-    movlw   '*'
-    movwf   scratch8        ; display asterisk by "Down" label
-
-    call    pulseMotorDownWithDelay	; move motor one step
-                                 	; no delay before stepping because enough time wasted above
-
-	goto	cycleLoopCT
-
-upCycleCT:
-
-; voltage too low (current too high - blade touching) - move cutting blade up
-
-    movlw   '*'
-    movwf   scratch7                ; display asterisk by "Up" label
-    movlw   ' '
-    movwf   scratch8
-
-quickRetractCT:
-
-    call    handleFastIO            ; set switch flags, display depth, and send output states
-            
-    btfss   switchStates,SELECT_SW_FLAG
-    goto    exitCT                  ; exit the notch cutting mode if the Select button pressed
-
-    call    pulseMotorUpWithDelay  	; move motor up one step - delay to allow motor to move
-
-    call    decDepth				; going up decrements the position by one step distance
-
-    banksel cycleTestRetract0
-
-	; user counter to return blade to original start position
-
-    movlw   .1                      ; decrement LSByte
-    subwf   cycleTestRetract0,F		; see note "incf vs decf rollover"
-    btfss   STATUS,C                ; did LSByte roll under (0->255)?
-	decf	cycleTestRetract1,F		; decrement MSByte after LSByte roll under
-	movf	cycleTestRetract0,W		; check MSB:LSB for zero
-	iorwf	cycleTestRetract1,W
-	btfsc	STATUS,Z
-	goto    restartCycleCT	; restart loop when counter reaches zero
-
-    goto    quickRetractCT
-	
-exitCT:
-
-    banksel POWER_ON_L
-    bcf     POWER_ON_L,POWER_ON    ; turn off the cutting voltage
-
-    banksel flags
-    bcf     flags3,TIME_CRITICAL    ; configure functions for normal waits and delays
-        
-    call    waitXmtPrep            ; wait until buffer printed
-
-    return
-
-; end of cycleTest
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; handleFastIO
-;
-; Handles setting of switch input flags, sending of depth display to LCD PIC and sending of output
-; states to the Switch PIC, alternating between each type of send packet and limiting the number
-; of sends to decrease overhead.
-;
-; Since this function makes a call to sendOutputStatesIfReadyQ (which skips the send rate limiting
-; controls), it calls processIOQ to skip that function's call to sendOutputStatesIfReady which
-; is an unnecessary time waste as the output states would be sent extra times.
-;
-; Used by cutNotch and cycleTest.
-;
-
-handleFastIO:
-    
-    call    processIOQ              ; check local & remote switch states
-
-    call    handlePowerSupplyOnOff  ; turn cutting current power supply on/off per switch setting
-        
-    btfsc   flags2,PACKET_SEND_TYPE
-    goto    sendOutputStatesHFIO
-    
-    call    displayPosLUCL
-    return
-   
-sendOutputStatesHFIO:    
-    
-    call    sendOutputStatesIfReadyQ
-    return
-    
-; end of handleFastIO
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; sparkTimer
-;
-; Tracks time between sparking of the blade.  Uses high limit comparator input - if this signal
-; is 1, then voltage and current are good - if 0 then the blade needs to move down.  If the blade
-; moves down every time this signal goes to 0, it advances too quickly - it should only advance
-; when no spark has occurred for a specified time.
-;
-; The timer counts down and is reset any time the voltage/current are good.  If the timer makes
-; it to zero without being reset, then an advance is required.
-;
-; Returns Z = 0 if not time to advance, Z = 1 if time to advance (lower blade).
-;
-; A smaller value makes the advance more aggressive.
-;
-; The forced 1 value in the lower nibble of sparkLevel and in the lower byte of the counter word
-; are required to avoid 0 values as decfsz is used for which a starting value of 0 would result in
-; 255 loops.
-;
-
-sparkTimer:
-
-    btfsc   HI_LIMIT_P,HI_LIMIT     ; is voltage too high? (current too low)
-    goto    noAdvanceST             ; voltage is good, don't advance
-
-; check the advance timer
-
-    bcf     STATUS,Z        ; preset flag - decfsz does not affect Z
-
-    decfsz  sparkTimer0,F   ; count down
-    return                  ; returns Z = 0, no advance due to not timed out
-    decfsz  sparkTimer1,F
-    return                  ; returns Z = 0, no advance due to not timed out
-
-    movlw   0x01            ; NOTE - don't use less than 0x01 (0 = 0xff)
-    movwf   sparkTimer0
-    movf    sparkLevel,W    ; NOTE - don't use less than 0x01 (0 = 0xff)
-    movwf   sparkTimer1
-   
-    bsf     STATUS,Z        ; return Z = 1, blade advance required
-
-    return
-
-noAdvanceST:
-
-    ; voltage is good, so reset timer
-
-    movlw   0x01            ; NOTE - don't use less than 0x01 (0 = 0xff)
-    movwf   sparkTimer0
-    movf    sparkLevel,W    ; NOTE - don't use less than 0x01 (0 = 0xff)
-    movwf   sparkTimer1
-
-    bcf     STATUS,Z        ; return Z = 0, no blade advance
-
-    return
-
-; end of sparkTimer
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; overCurrentTimer
-;
-; Tracks time between over-current spikes.  Uses low limit comparator input - if this signal
-; is 0, then voltage and current are good - if 1 then the blade needs to up .  If the blade
-; moves up every time this signal goes to 1, it rises too quickly - it should only retract
-; when an overvoltage has occurred for a specified time.
-;
-; The timer counts down and is reset any time the voltage/current are good.  If the timer makes
-; it to zero without being reset, then a retract is required.
-;
-; Returns Z = 0 if not time to retract, Z = 1 if time to retract (raise blade).
-;
-; A smaller value makes the retract more responsive - will retract more often.
-;
-; Further explanation:
-; The system has to be in overcurrent for the entire duration of the timer to force a retract.  This
-; prevents retracts on short spikes of overcurrent.
-;
-
-overCurrentTimer:
-
-    btfsc   LO_LIMIT_P,LO_LIMIT     ; is voltage too low? (current too high)
-    goto    noRetractOCT            ; voltage is good, don't retract
-
-; check the retract timer
-
-    bcf     STATUS,Z        ; preset flag - decfsz does not affect Z
-
-    decfsz  overCurrentTimer0,F	; count down
-    return             		    ; returns Z = 0, no retract due to not timed out
-    decfsz  overCurrentTimer1,F
-    return                  	; returns Z = 0, no retract due to not timed out
-
-    movlw   0xff            ; NOTE - don't use less than 0x01 (0 = 0xff)
-    movwf   overCurrentTimer0
-    movlw   0x1f            ; NOTE - don't use less than 0x01 (0 = 0xff)
-                            ; ver 7.6b = 0
-    movwf   overCurrentTimer1
-   
-    bsf     STATUS,Z        ; return Z = 1, blade retract required
-
-    return
-
-noRetractOCT:
-
-    ; voltage is good, so reset timer
-
-    movlw   0xff            ; NOTE - don't use less than 0x01 (0 = 0xff)
-    movwf   overCurrentTimer0
-    movlw   0x1f            ; NOTE - don't use less than 0x01 (0 = 0xff)
-                            ; ver 7.6b = 0
-    movwf   overCurrentTimer1
-
-    bcf     STATUS,Z        ; return Z = 0, no blade advance
-
-    return
-
-; end of overCurrentTimer
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; adjustSpeedOrPowerUp
-;
-; If Mode switch is in "Setup" position, jumps to adjustSpeedUp.
-; If switch is in "Normal" position, jumps to adjustPowerUp.
-;
-
-adjustSpeedOrPowerUp:
-
-    btfss   switchStates,MODE_SW_FLAG  ; in Setup mode?
-    goto    adjustSpeedUp              ; adjust Speed setting if in "Setup" mode
-    goto    adjustPowerUp              ; adjust Power Level if in "Normal" mode
-
-; end of adjustSpeedOrPowerUp
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; adjustSpeedOrPowerDown
-;
-; If Mode switch is in "Setup" position, jumps to adjustSpeedDown.
-; If switch is in "Normal" position, jumps to adjustPowerDown.
-;
-
-adjustSpeedOrPowerDown:
-
-    btfss   switchStates,MODE_SW_FLAG   ; in Setup mode?
-    goto    adjustSpeedDown             ; adjust Speed setting if in "Setup" mode
-    goto    adjustPowerDown             ; adjust Power Level if in "Normal" mode
-
-; end of adjustSpeedOrPowerDown
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; adjustSpeedUp and adjustSpeedDown
-;
-; Call adjustSpeedUp if jog up button toggled, adjustSpeedDown if jog down button toggled.
-;
-; If jog up then speed is increased by one, rolling from 9 to 1 if appropriate.
-; If jog down then speed is decreased by one, rolling from 1 to 9 if appropriate.
-;
-; speedValue range is 1-9 which is converted to sparkLevel range of 0x01-0x11
-;
-; Thus, speedValue of 1 gives sparkLevel of 0x01; 2 gives 0x03; 3 gives 0x05, etc.
-;
-; In actual use, sparkLevel is then used as the upper byte of a counter word:
-;
-;   sparkLevel:0x01
-;
-; The forced 1 value in the lower nibble of sparkLevel and in the lower byte of the counter word
-; are required to avoid 0 values as decfsz is used for which a starting value of 0 would result in
-; 255 loops.
-;
-
-adjustSpeedUp:
-
-; jog up button press    
-
-    incf    speedValue,F    ; increment the value
-    
-    movlw   .10
-    subwf   speedValue,W    ; check if 10 reached
-    btfss   STATUS,Z
-    goto    updateAS        ; display the digit
-
-    movlw   .1
-    movwf   speedValue      ; roll around to 1 after 9
-
-    goto    updateAS        ; display the digit
-
-adjustSpeedDown:
-
-; jog down button press
-
-    decf    speedValue,F    ; decrement the value
-    
-    movlw   .0
-    subwf   speedValue,W    ; check if less than 1
-    btfss   STATUS,Z
-    goto    updateAS        ; display the digit
-
-    movlw   .9
-    movwf   speedValue      ; roll around to 9 after 1
-
-updateAS:
-
-; update and set dirty flag so values will be saved to eeprom later
-; set display flag to trigger cutNotch function to update the values on the display
-
-    btfsc   flags,WALL_MODE ; Notch or Wall mode?
-    goto    wallModeAS
-
-    movlw   high sparkLevelNotch ; transfer value to Notch variable
-    movwf   FSR0H
-    movlw   low sparkLevelNotch
-    movwf   FSR0L
-
-    goto    processValueAS
-
-wallModeAS:
-
-    movlw   high sparkLevelWall  ; transfer value to Wall variable
-    movwf   FSR0H
-    movlw   low sparkLevelWall
-    movwf   FSR0L
-
-processValueAS:
-
-    ; convert speedValue from 1-9 to 0x01-0x11 and store in sparkLevel and Notch or Wall
-    ; variable (pointed by FSR0) -- see notes in function header for details
-
-    movlw   0x01
-    subwf   speedValue,W
-    movwf   sparkLevel
-    rlf     sparkLevel,F    ; shift left 1 bit
-    movf    sparkLevel,W    ; get the rotated value
-    andlw   0xfe            ; mask off lower bit(s)
-    addlw   0x01            ; force value to be at least value of 1
-    movwf   sparkLevel      ; store value in sparkLevel
-    movwf   INDF0           ; store value in appropriate variable
- 
-    bsf     flags,DATA_MODIFIED     ; set flag so values will be saved
-    bsf     flags,UPDATE_DISPLAY    ; set flag so display will be updated
-
-    return
-
-; end of adjustSpeedUp and adjustSpeedDown
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; adjustPowerUp and adjustPowerDown
-;
-; Call adjustPowerUp if jog up button toggled, adjustPowerDown if jog down button toggled.
-;
-; If jog up then speed is increased by one, rolling from 5 to 1 if appropriate.
-; If jog down then speed is decreased by one, rolling from 1 to 5 if appropriate.
-;
-; Power level is range of 1-5 which is converted to a value for hiCurrentLimitPot.
-; Value of loCurrentLimitPot is then set to CURRENT_LIMIT_DIFFERENCE lower than hiCurrentLimitPot.
-;
-; The Power Level is converted to a value for hiCurrentLimitPot using this formula:
-;
-;   hiCurrentLimitPot = CURRENT_LIMIT_POT_OFFSET + (powerLevel * CURRENT_LIMIT_POT_INCREMENT)
-;   loCurrentLimitPot = hiCurrentLimitPot - CURRENT_LIMIT_DIFFERENCE
-;
-
-adjustPowerUp:
-
-; jog up button press
-
-    incf    powerLevel,F    ; increment the value
-
-    movlw   .6
-    subwf   powerLevel,W    ; check if upper limit reached
-    btfss   STATUS,Z
-    goto    updateAP        ; display the digit
-
-    movlw   .1
-    movwf   powerLevel      ; roll around if limit reached
-
-    goto    updateAP        ; display the digit
-
-adjustPowerDown:
-
-; jog down button press
-
-    decf    powerLevel,F    ; decrement the value
-
-    movlw   .0
-    subwf   powerLevel,W    ; check if less than lower limit
-    btfss   STATUS,Z
-    goto    updateAP        ; display the digit
-
-    movlw   .5
-    movwf   powerLevel      ; roll around if limit reached
-
-updateAP:
-
-    ; convert Power Level to values for the digital pots
-    ; see notes in function header for details
-
-    movlw   CURRENT_LIMIT_POT_OFFSET
-    movwf   hiCurrentLimitPot
-
-    movf    powerLevel,W
-    movwf   scratch0
-
-apuLoop1:
-
-    movlw   CURRENT_LIMIT_POT_INCREMENT     ; add an increment for each count of Power Level
-    addwf   hiCurrentLimitPot,F
-
-    decfsz  scratch0,F
-    goto    apuLoop1
-
-apuExit:
-
-    movlw   CURRENT_LIMIT_DIFFERENCE        ; calculate low setting from the high setting
-    subwf   hiCurrentLimitPot,W
-    movwf   loCurrentLimitPot
-
-    call    setHighCurrentLimitDigitalPot
-    call    setLowCurrentLimitDigitalPot
-
-    banksel flags
-    
-    bsf     flags,DATA_MODIFIED             ; set flag so values will be saved
-    bsf     flags,UPDATE_DISPLAY            ; set flag so display will be updated
-
-    return
-
-; end of adjustPowerUp and adjustPowerDown
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; pulseMotorDownWithDelay
-;
-; Moves the motor down one click, delaying as necessary for proper motor operation.
-;
-; Whether the direction bit is set or cleared depends upon the state of the Normal/Reverse
-; direction flag.  This option can be set by the user to adjust for systems with different wiring.
-;
-
-pulseMotorDownWithDelay:
-    
-    banksel MOTOR_DIR_L
-    bsf     MOTOR_DIR_L,MOTOR_DIR       ; motor down for normal direction option
-	
-    banksel flags
-    btfss	flags,MOTOR_DIR_MODE        ; is motor direction option reverse?
-    goto    pMDWD1
-
-    banksel MOTOR_DIR_L
-    bcf     MOTOR_DIR_L,MOTOR_DIR       ; motor down for reverse direction option
-
-pMDWD1:
-
-	goto	pulseMotorWithDelay
-
-; end of pulseMotorDownWithDelay
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; pulseMotorUpWithDelay
-;
-; Moves the motor up one click, delaying as necessary for proper motor operation.
-;
-; Whether the direction bit is set or cleared depends upon the state of the Normal/Reverse
-; direction flag.  This option can be set by the user to adjust for systems with different wiring.
-;
-
-pulseMotorUpWithDelay:
-
-    banksel MOTOR_DIR_L
-    bcf     MOTOR_DIR_L,MOTOR_DIR       ; motor up for normal direction option
-	
-    banksel flags
-    btfss	flags,MOTOR_DIR_MODE        ; is motor direction option reverse?
-    goto    pMUWD1
- 
-    banksel MOTOR_DIR_L
-    bsf     MOTOR_DIR_L,MOTOR_DIR       ; motor up for reverse direction option
-	
-pMUWD1:
-
-    goto	pulseMotorWithDelay
-
-; end of pulseMotorUpWithDelay
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; pulseMotorWithDelay
-;
-; Delays and then pulses the motor.  The motor will not respond if there is not enough delay
-; between pulses.
-;
-; For no delay in cases where enough time is wasted between pulses, call pulseMotorNoDelay.
-;
-; On entry:
-;
-; Desired motor direction bit set, ie:
-;       bcf     MOTOR,DIR_SEL
-;   or
-;       bsf     MOTOR,DIR_SEL
-;
-; NOTE: The delay value of .15 worked for both standard and extended heads.  The cut rate
-; for the extended head was about 50% too slow compared to desired rate of 0.001 per minute.
-; The burn was very consistent and customer wanted to try paralleling the power supplies
-; to increase burn rate rather than experiment with program changes.  Originally, this delay
-; value was loaded from normDelay.  If it is decided that each head needs a different value,
-; a new variable needs to be created (ex: cutDelay) and loaded specifically for each head type
-; because normDelay and setupDelay are already used to control the speeds in jog mode.  The values
-; for jog mode may not work for cut mode because of the difference in the code exec time.
-;
-
-pulseMotorWithDelay:
-
-    banksel scratch1
-
-    movlw   0x0
-    movwf   scratch1
-    ;movf    normDelay,W
-    movlw   .15             ; see notes in header regarding this value (use .15 for normal head)
-    call    bigDelayA
-
-    banksel MOTOR_STEP_L
-    bcf     MOTOR_STEP_L,MOTOR_STEP
-    nop
-    nop
-    bsf     MOTOR_STEP_L,MOTOR_STEP ; pulse motor controller step line to advance motor one step
-
-    banksel flags
-
-    return
-
-pulseMotorNoDelay:
-
-    banksel MOTOR_STEP_L
-    bcf     MOTOR_STEP_L,MOTOR_STEP
-    nop
-    nop
-    bsf     MOTOR_STEP_L,MOTOR_STEP ; pulse motor controller step line to advance motor one step
-
-    banksel flags
-
-    return
-
-; end of pulseMotorAndDelay
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; setTarget
-;
-; This function allows the user to set the depth of the cut.
-; The most significant digit is not edited, so it is always zero. The next four digits are
-; editable. The editable/ignored digits are:
-;       nEEEEnnnnnn
-;   where n represents non-editable digits while E represents editable digits.
-; 
-
-setTarget:
-
-; set up the display
-
-    call    setupLCDBlockPkt    ; prepare block data packet for LCD    
-    
-    call    clearScreen     ; clear the LCD screen
-
-    movlw   high string9   ; "   Set Cut Depth"
-    movwf   FSR1H
-    movlw   low string9
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-    movlw   LINE2_COL5      ; set display position
-    call    writeControl
-    movlw   high string10   ; "0.000 inches"
-    movwf   FSR1H
-    movlw   low string10
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-    movlw   LINE3_COL1      ; set display position
-    call    writeControl
- 
-    movlw   high string17   ; load the high of string17 to be used with low of string17 or string18
-    movwf   FSR1H
-    
-    movlw   low string17    ; print "Notch Mode" if in notch mode
-    btfsc   flags,WALL_MODE ; which mode?
-    movlw   low string18    ; print "Wall Mode" if in wall mode
-    
-    movwf   FSR1L	    ; put the low of either string17 or string18 -- depends on mode
-   
-    call    printStringWaitPrep     ; print the string and wait until done
-
-    movlw   LINE2_COL5      ; set display position
-    call    writeControl
-
-    call    displayTarget   ; display the value over the "0.000 inches" string so it can be edited
-
-    movlw   LINE2_COL5      ; set display position
-    call    writeControl
-	call	turnOnBlink
-    call    flushXmtWaitPrep    ; force the buffer to print and wait until done then prep for next
-
-; handle editing
-
-    clrf    scratch7        ; track character being modified -- 0 for leftmost character
-                            ; 4 characters -- 4 digits, decimal point gets skipped
-
-    movlw   high target9    ; first digit in variable being edited
-    movwf   FSR1H
-    movlw   low target9          
-    movwf   FSR1L
-    
-    movlw   LINE2_COL5      ; set display position
-    movwf   cursorPos
-
-loopSD:
-
-    call    adjustBCDDigit  ; handle editing of the digit
-
-    addfsr  FSR1,1          ; point to the next digit
-    incf    scratch7,f      ; track character being modified
-
-    movlw   .4              ; exit if past the last character
-    subwf   scratch7,W
-    btfsc   STATUS,Z
-    goto    endSD
-
-    movlw   .1              ; if on second digit, move cursor again to skip decimal point
-    subwf   scratch7,W
-    btfsc   STATUS,Z
-    incf    cursorPos,F
-
-    incf    cursorPos,F     ; move the cursor to the next digit
-    
-    movf    cursorPos,W
-    call    writeControl
-    call    turnOnBlink
-    call    flushXmtWaitPrep    ; force the buffer to print and wait until done then prep for next
-
-    goto    loopSD
-
-endSD:
-
-    call    saveDepthValueToEEprom  ; save the value stored for depth in the EEProm
-
-    goto    setCutMode
-
-; end of setTarget
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; setCutMode
-;
-; This function allows the user to select the Notch or Wall Reduction mode.  The appropriate
-; string is displayed on line 3 (Notch or Wall Mode) and the first character is highlighted. If
-; the up or down switch is pressed (or toggled), the mode will flip.  Pressing the Reset/Enter
-; button will save the mode and exit.
-; 
-
-setCutMode:
-
-    movlw   LINE3_COL1      ; set display position
-    call    writeControl
-    
-    movlw   high string17   ; load the high of string17 to be used with low of string17 or string18
-    movwf   FSR1H
-    
-    movlw   low string17    ; print "Notch Mode" if in notch mode
-    btfsc   flags,WALL_MODE ; which mode?
-    movlw   low string18    ; print "Wall Mode" if in wall mode
-    
-    movwf   FSR1L	    ; put the low of either string17 or string18 -- depends on mode
-   
-    call    printStringWaitPrep     ; print the string and wait until done
-
-    movlw   LINE3_COL1      ; set display position
-    call    writeControl
-	call	turnOnBlink
-    call    flushXmtWaitPrep    ; force the buffer to print and wait until done then prep for next
-
-loopSCM:
-    
-    call    processIO       ; watch for user input
-
-    btfsc   switchStates,JOG_UP_SW_FLAG
-    goto    skip_upSCM      ; skip if Up switch not pressed
-
-; jog up button press    
-
-    movlw   b'00001000'     ; flip the Notch/Wall cut mode flag
-    xorwf	flags,F
-
-    goto    setCutMode      ; update the display
-
-skip_upSCM:
-
-    btfsc   switchStates,JOG_DOWN_SW_FLAG
-    goto    skip_dwnSCM     ; skip if Down switch not pressed
-
-; jog down button press
-
-    movlw   b'00001000'     ; flip the Notch/Wall cut mode flag
-    xorwf	flags,F
-    
-    goto    setCutMode      ; update the display
-
-skip_dwnSCM:
-
-    btfsc   switchStates,SELECT_SW_FLAG
-    goto    loopSCM             ; loop without updating display if no button pressed
-
-; set sparkLevel to value for Notch or Wall mode depending on current mode
-
-    movf    sparkLevelNotch,W   ; use Notch mode value if in Wall Reduction mode
-    btfsc   flags,WALL_MODE
-    movf    sparkLevelWall,W    ; use Wall mode value if in Wall Reduction mode
-    movwf   sparkLevel          ; save the selected value
-
-    call    saveFlagsToEEprom   ; save the flags variable to eeprom so that the mode will be
-                                ; recalled on power up
-
-    return                  ; return when Reset/Enter/Zero button pressed
-
-; end of setCutMode
 ;--------------------------------------------------------------------------------------------------
 
 ;--------------------------------------------------------------------------------------------------
@@ -3284,357 +1177,6 @@ popFSR1:
     return
     
 ; popFSR1
-;--------------------------------------------------------------------------------------------------
-    
-;--------------------------------------------------------------------------------------------------
-; adjustBCDDigit
-;
-; This function allows the user to adjust the value of a BCD digit.
-;
-; On entry
-;
-; FSR1 = memory address of the digit
-; cursorPos = screen location of the digit
-;
-
-adjustBCDDigit:
-
-loopABD:
-    
-    call    pushFSR1
-    call    processIO       ; watch for user input
-    call    popFSR1
-    
-    btfsc   switchStates,JOG_UP_SW_FLAG
-    goto    skip_upABD      ; skip if Up switch not pressed
-
-; jog up button press    
-
-    incf    INDF1,F         ; increment the digit
-    
-    movlw   .10
-    subwf   INDF1,W         ; check if 10 reached
-    btfss   STATUS,Z
-    goto    updateABD       ; display the digit
-
-    movlw   .0
-    movwf   INDF1           ; roll around to 0 after 9
-
-    goto    updateABD       ; display the digit
-
-skip_upABD:
-
-    btfsc   switchStates,JOG_DOWN_SW_FLAG
-    goto    skip_dwnABD    ; skip if Down switch not pressed
-
-; jog down button press
-
-    decf    INDF1,F         ; decrement the digit
-    
-    movlw   0xff            
-    subwf   INDF1,W         ; check if less than 0
-    btfss   STATUS,Z
-    goto    updateABD       ; display the digit
-
-    movlw   .9
-    movwf   INDF1           ; roll around to 9 after 0
-
-    goto    updateABD       ; display the digit
-
-skip_dwnABD:
-
-    btfsc   switchStates,SELECT_SW_FLAG
-    goto    loopABD        ; loop if Reset/Select switch not pressed
-
-; reset/enter/zero button press - digit finished, so exit
-
-    return                  ; return when Reset/Enter/Zero button pressed
-
-updateABD:
-
-; update the character on the screen
-
-    movf    cursorPos,W
-    call    writeControl    ; prepare to overwrite the digit
-    
-    movf    INDF1,W
-    addlw   0x30            ; convert to ASCII
-    call    writeChar       ; write the digit
-
-    movf    cursorPos,W
-    call    writeControl
-	call	turnOnBlink
-
-    call    flushXmtWaitPrep    ; force the buffer to print and wait until done then prep for next
-    
-    goto    loopABD         ; continue editing
-    
-; end of adjustBCDDigit
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; jogMode
-;
-; This function allows the user to manually adjust the height of the cutting blade using
-; the Up/Down buttons.  If the Mode switch is in "Normal" position, the head moves slowly, if in
-; "Setup" position, the head moves more quickly.  In "Normal" mode, the Reset/Enter/Zero button
-; exits the Jog Mode, in "Setup" mode, the Reset/Enter/Zero button zeroes the displayed position
-; of the height.
-; 
-
-jogMode:
-
-    movlw   .255                ; delay 255 milliseconds to allow user to release the Select button
-    call    msDelay             ;  as this function disables switch debouncing
-    call    processIO           ; call to clear out old switch flags from local and remote
-    
-    banksel flags3
-    bsf     flags3,TIME_CRITICAL ; configure functions to minimize waits and delays
-                                
-; set up the display
-
-    call    setupLCDBlockPkt    ; prepare block data packet for LCD
-    
-    call    clearScreen     ; clear the LCD screen
-
-    movlw   LINE1_COL7      ; set display position
-    call    writeControl
-    movlw   high string11   ; "Jog Mode"
-    movwf   FSR1H
-    movlw   low string11
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-    movlw   LINE2_COL5      ; set display position
-    call    writeControl
-    movlw   high string12   ; "Zero or Exit"
-    movwf   FSR1H
-    movlw   low string12
-    movwf   FSR1L
-    call    printStringWaitPrep     ; print the string and wait until done
-
-    movlw   LINE4_COL18     ; set display position
-    call    writeControl
-    movlw   0x22
-    call    writeChar       ; write '"' for inch mark
-
-    movlw   LINE4_COL12     ; set display position
-    call    writeControl
-    call    displayPos      ; display the location of the head relative to the zero point
-    call    flushXmtWaitPrep    ; force the buffer to print and wait until done then prep for next
-
-    movlw   0x0
-    movwf   scratch1
-    movlw   0xff
-    call    bigDelayA       ; delay - give user chance to release button
-
-    banksel POWER_ON_L
-    bsf     POWER_ON_L,POWER_ON    ; turn on the cutting voltage
-    
-    banksel flags
-
-loopJM:
-
-    bcf     flags3,DEBOUNCE_ACTIVE      ; bypass switch debouncing for better response
-    call    processIO                   ; process inputs and outputs
-    
-    call    handlePowerSupplyOnOff    
-    
-    movlw   0x0                         ; delay to control motor speed
-    movwf   scratch1
-    movlw   0x1
-    call    bigDelayA
-
-    btfsc   switchStates,JOG_UP_SW_FLAG
-    goto    chk_dwnJM       ; skip if Up switch not pressed
-
-; jog up button press    
-
-    banksel MOTOR_DIR_L
-    bcf     MOTOR_DIR_L,MOTOR_DIR   ; motor up for normal direction option
-	
-    banksel flags
-	btfss	flags,MOTOR_DIR_MODE    ; is motor direction option reverse?
-    goto    jM1
-
-    banksel MOTOR_DIR_L
-    bsf     MOTOR_DIR_L,MOTOR_DIR   ; motor up for reverse direction option
-    
-jM1:
-
-    nop
-    nop
-    nop
-    banksel MOTOR_STEP_L
-    bcf     MOTOR_STEP_L,MOTOR_STEP
-    nop
-    nop
-    bsf     MOTOR_STEP_L,MOTOR_STEP ; pulse motor controller step line to advance motor one step
-
-    banksel flags
-
-    call    decDepth        ; going up decrements the position by one step distance
-
-    goto    updateJM        ; display the new location
-
-chk_dwnJM:
-
-    btfsc   switchStates,JOG_DOWN_SW_FLAG
-    goto    not_dwnJM      ; skip if Down switch not pressed
-
-; jog down button press
-
-    banksel MOTOR_DIR_L
-    bsf     MOTOR_DIR_L,MOTOR_DIR   ; motor down for normal direction option
-    
-    banksel flags
-	btfss	flags,MOTOR_DIR_MODE    ; is motor direction option reverse?
-    goto    jM2
-
-    banksel MOTOR_DIR_L
-    bcf     MOTOR_DIR_L,MOTOR_DIR   ; motor up for reverse direction option
-
-jM2:
-
-    nop
-    nop
-    nop
-    banksel MOTOR_STEP_L
-    bcf     MOTOR_STEP_L,MOTOR_STEP
-    nop
-    nop
-    bsf     MOTOR_STEP_L,MOTOR_STEP ; pulse motor controller step line to advance motor one step
-
-    banksel flags
-
-    call    incDepth        ; going down increments the position by one step distance
-
-    goto    updateJM        ; display the new location
-
-not_dwnJM:
-
-    btfsc   switchStates,SELECT_SW_FLAG
-    goto    loopJM          ; loop if Reset/Select switch not pressed
-
-; handle Select button press
-
-    btfsc   switchStates,MODE_SW_FLAG   ; in Setup mode?
-    goto    exitJM                      ;exit Jog Mode if not when Select button pressed
-
-; set the current height as zero
-
-    call    zeroDepth       ; clear the depth position variable
-
-    call    waitXmtPrep     ; wait until buffer printed
-
-    movlw   LINE4_COL12     ; set display position
-    call    writeControl
-    call    displayPos      ; display the position
-    call    flushXmtWaitPrep    ; force the buffer to print and wait until done then prep for next
-
-    goto    loopJM          ; stay in jog mode after zeroing
-
-updateJM:
-
-    movlw   0x0             ; delay between each motor step or motor won't respond
-    movwf   scratch1
-    movf    setupDelay,W
-    call    bigDelayA
-
-    btfsc   switchStates,MODE_SW_FLAG   ; in Setup mode?
-    goto    noExtraDelayJM      ; extra pause if not in setup speed mode to slow down the head
-
-    movlw   0x0             ; delay extra in normal speed mode
-    movwf   scratch1
-    movf    normDelay,W
-    call    bigDelayA
-
-noExtraDelayJM:
-
-    banksel serialXmtBufNumBytes    ; update the display if serial transmit not in progress
-    movf    serialXmtBufNumBytes,W
-    btfsc   STATUS,Z
-    goto    displayJM
-
-    banksel flags
-
-    goto    loopJM                  ; continue without updating display if print buffer not ready      
-
-displayJM:
-
-    banksel flags                   ; update the display
-
-    call    setupLCDBlockPkt        ; prepare block data packet for LCD    
-    
-    movlw   LINE4_COL12             ; set display position
-    call    writeControl
-    call    displayPos      ; display the location of the head relative to the zero point
-    movlp   high startSerialPortTransmit
-    call    startSerialPortTransmit ; force buffer to print, don't wait due to time criticality
-    movlp   high displayJM                                   
-                                    
-    banksel flags
-
-    goto    loopJM          ; stay in jog mode
-
-exitJM:
-
-    banksel POWER_ON_L
-    bcf     POWER_ON_L,POWER_ON     ;  turn off the cutting voltage
-
-    banksel flags
-    bcf     flags3,TIME_CRITICAL    ; configure functions for normal waits and delays
-        
-    call    waitXmtPrep             ; wait until buffer printed
-
-    return
-
-; end of jogMode
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; displayPos
-;
-; Displays the current height of the head relative to the zero position.  The variables are in
-; unpacked BCD format, the smaller is always subtracted from the bigger and the sign applied
-; afterwards.  The resulting difference is displayed on the LCD.
-;
-; On entry:
-;
-; Cursor should be positioned at desired print location of the LCD
-; Bank should point to flags.
-;
-; On exit:
-;
-; Bank will point to flags.
-;
-
-displayPos:
-
-        banksel depthSign
-        movf    depthSign,F     ; sign of depth position variable
-        banksel flags           ; restore bank
-
-        btfss   STATUS,Z
-        goto    negativeDP      ; jump if position is negative
-
-; position is positive
-
-        movlw   0x20
-        call    writeChar       ; display a space instead of negative sign
-
-        goto    displayDepth
-
-negativeDP:
-
-; position is positive
-
-        movlw   0x2d        ; ASCII '-'
-        call    writeChar   ; display a negative sign
-
-        goto    displayDepth
-
-; end of displayPos
 ;--------------------------------------------------------------------------------------------------
 
 ;--------------------------------------------------------------------------------------------------
@@ -3757,51 +1299,23 @@ selectHigherOption:
 ; Note that if the first option is not on line one or the last option not on the last line,
 ; this section won't be reached because the code above prevents moving beyond option 1 or
 ; the max option - thus constraining the cursor to the proper lines.
-; Note that the numbering for the lines is screwy - 0x80, 0xc0, 0x94, 0xd4
+; Note that the numbering for the lines is screwy - 0x00, 0x40
 
 moveCursorSHO:
 
-    movlw   LINE4_COL1
-    subwf   cursorPos,W         ; is cursor at 0xd4?
+    movlw   LINE2_COL1
+    subwf   cursorPos,W         ; is cursor at last line?
     btfss   STATUS,Z    
     goto    line2SHO
-
-    movlw   LINE3_COL1          ; move cursor up one line
-    movwf   cursorPos
-    call    writeControl        ; write the cursor to the LCD
-    call    flushXmtWaitPrep    ; force the buffer to print and wait until done then prep for next
-
-    return
-
-line2SHO:
-
-    movlw   LINE3_COL1
-    subwf   cursorPos,W     ; is cursor at 0x94?
-    btfss   STATUS,Z    
-    goto    line3SHO
-
-    movlw   LINE2_COL1      ; set display position
-    movwf   cursorPos
-    call    writeControl    ; write the cursor to the LCD
-    call    flushXmtWaitPrep    ; force the buffer to print and wait until done then prep for next
-
-	return
-
-line3SHO:
-
-    movlw   LINE2_COL1
-    subwf   cursorPos,W     ; is cursor at LINE2_COL1?
-    btfss   STATUS,Z    
-    goto    line4SHO
 
     movlw   LINE1_COL1          ; move cursor up one line
     movwf   cursorPos
     call    writeControl        ; write the cursor to the LCD
     call    flushXmtWaitPrep    ; force the buffer to print and wait until done then prep for next
 
-	return
+    return
 
-line4SHO:                   ; don't move cursor if at the top
+line2SHO:                       ; don't move cursor if at the top
 
     return
 
@@ -3850,200 +1364,27 @@ selectLowerOption:
 ; Note that if the first option is not on line one or the last option not on the last line,
 ; this section won't be reached because the code above prevents moving beyond option 1 or
 ; the max option - thus constraining the cursor to the proper lines.
-; Note that the numbering for the lines is screwy - 0x80, 0xc0, 0x94, 0xd4
+; Note that the numbering for the lines is screwy - 0x00, 0x40
 
 moveCursorSLO:
 
     movlw   LINE1_COL1
-    subwf   cursorPos,W     ; is cursor at 0x80?
+    subwf   cursorPos,W     ; is cursor at top line?
     btfss   STATUS,Z    
     goto    line2SLO
 
     movlw   LINE2_COL1      ; set display position
     movwf   cursorPos
-    call    writeControl    ; write the cursor to the LCD
+    call    writeControl        ; write the cursor to the LCD
     call    flushXmtWaitPrep    ; force the buffer to print and wait until done then prep for next
 
     return
 
-line2SLO:
-
-    movlw   LINE2_COL1
-    subwf   cursorPos,W     ; is cursor at LINE2_COL1?
-    btfss   STATUS,Z    
-    goto    line3SLO
-
-    movlw   LINE3_COL1          ; move cursor down one line
-    movwf   cursorPos
-    call    writeControl        ; write the cursor to the LCD
-    call    flushXmtWaitPrep    ; force the buffer to print and wait until done then prep for next
-
-	return
-
-line3SLO:
-
-    movlw   LINE3_COL1
-    subwf   cursorPos,W     ; is cursor at 0x94?
-    btfss   STATUS,Z    
-    goto    line4SLO
-
-    movlw   LINE4_COL1          ; move cursor down one line
-    movwf   cursorPos
-    call    writeControl        ; write the cursor to the LCD
-    call    flushXmtWaitPrep    ; force the buffer to print and wait until done then prep for next
-
-	return
-
-line4SLO:                   ; don't move cursor if at the bottom
+line2SLO:                   ; don't move cursor if at the bottom
 
     return
 
 ; end of selectLowerOption
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; displayDepth
-;
-; Displays 4 digits of the depth position variable in format x.xxx.
-; The most significant digit is not displayed, nor are the least significant digits.
-;
-
-displayDepth:
-
-    movlw   high depth9         ; depth10 not displayed
-    movwf   FSR1H
-    movlw   low depth9
-    movwf   FSR1L
-
-    goto    displayBCDVar
-
-; end of displayDepth
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; displayTarget
-;
-; Displays 4 digits of the target depth variable in format x.xxx.
-; The most significant digit is not displayed, nor are the least significant digits.
-;
-
-displayTarget:
-
-    movlw   high target9        ; target10 not displayed
-    movwf   FSR1H
-    movlw   low target9
-    movwf   FSR1L
-
-    goto    displayBCDVar
-
-; end of displayTarget
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; displayBCDVar
-;
-; Displays 4 digits of the BCD variable addressed by FSR1.  A decimal point is placed between
-; the first and second digits
-;
-; On entry:
-;
-; FSR1 contains address of BCD variable.
-; Bank points to scratch* variables.
-;
-
-displayBCDVar:
-    
-    moviw   FSR1++
-    addlw   0x30            ; convert BCD digit to ASCII
-    call    writeChar       ; write the first digit
-
-    movlw   '.'            
-    call    writeChar       ; write decimal point
-
-    movlw   .3              
-    movwf   scratch4        ; three bytes after the decimal point
-
-loopDBV1:
-
-    moviw   FSR1++
-    addlw   0x30            ; convert BCD digit to ASCII
-    call    writeChar       ; write the first digit
-
-    decfsz  scratch4,F      ; stop when count is zero
-    goto    loopDBV1
-
-    return
-
-; end of displayBCDVar
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; displaySpeedAndPower
-;
-; Displays the current speed value (stored as sparkLevel) and the current power setting. The power
-; setting is the cutting current range in use -- represetns the values used for the high and low
-; level comparator digital pot values.
-;
-; The value in sparkLevel is converted to ASCII 1 - 9 and displayed.
-; A '-' (dash) separator is displayed to separate the values.
-; The value powerLeve is converted to ASCII 1-5 and displayed.
-;
-; Search for other comments regarding sparkLevel for more info on how its value relates to the
-; ASCII values 1-9.
-;
-; Search for other comments regarding hiCurrentLimitPot and loCurrentLimitPot for more info on how
-; their values relate to the ASCII values 1-5.
-;
-; NOTE: The data is placed in the print buffer but is not submitted to be printed.  After using
-; this function, call flushLCD or printString to flush the buffer.
-;
-; On entry:
-;
-; no presets required
-;
-; On exit:
-;
-; WIP NOTE: The speed display value is parsed from the sparkLevel setting while the power display
-; is parsed much more simple from the powerLevel variable.
-; Couldn't speedLevel be used in a similar manner (and faster) rather than parsing from sparkLevel?
-; Would need to set speedLevel when sparkLevel is loaded from eeprom in the beginning.
-;
-
-displaySpeedAndPower:
-
-    movlw   LINE2_COL14     ; set display position
-    call    writeControl
-
-    ; display the speed value
-
-    ; parse the ASCII number from the sparkLevel value
-
-    movf    sparkLevel,W    ; get the current speed/sparkLevel value
-    movwf   speedValue      ; store in variable so we can manipulate it
-    rrf     speedValue,F    ; shift value to the right
-    movf    speedValue,W    ; get the rotated value
-    andlw   0x0f            ; mask off upper nibble
-    addlw   0x01            ; shift up one
-    movwf   speedValue      ; store speed value for use by other functions
-
-    addlw   0x30            ; convert BCD digit to ASCII
-    call    writeChar       ; write to the LCD buffer
-
-    ; write a '-' (dash) separator
-
-    movlw   0x2d            ; write a dash to separate speed from power level
-    call    writeChar       ; write to the LCD buffer
-
-    ; display the power value
-
-    movf    powerLevel,W
-
-    addlw   0x30            ; convert BCD digit to ASCII
-    call    writeChar       ; write to the LCD buffer
-
-    return
-
-; end of displaySpeedAndPower
 ;--------------------------------------------------------------------------------------------------
    
 ;--------------------------------------------------------------------------------------------------
@@ -4197,493 +1538,6 @@ msD1Loop3:
 	return
 
 ; end of msDelay
-;--------------------------------------------------------------------------------------------------
-    
-;--------------------------------------------------------------------------------------------------
-; isXgtY    Compare X word with Y word
-;
-; Entry point isXgtY checks if X > Y
-; Entry point isXltY checks if X < Y
-;
-; If condition is true,  Z = 0 and W = 0xff
-; If condition is false, Z = 1 and W = 0x00
-;
-; On entry:
-;
-; X word : scratch1:scratch0
-; Y word : scratch3:w
-;
-
-isXgtY:
-
-    movwf   scratch2        ; scratch2 = W
-    movlw   0x1             ; W = 1 (use this later to mask for less than flag)
-    goto    L12
-
-isXltY:
-    movwf   scratch2        ; scratch2 = w
-    movlw   0x4             ; W = 4 (use this later to mask for greater than flag)
-    goto    L12
-
-L12:
-    movwf   scratch4        ; store flag mask
-    movf    scratch3,W
-    subwf   scratch1,W      ; W = var21 - scratch0 (compare upper bytes of word)
-    btfss   STATUS,Z        ; upper bytes are same, compare lower bytes
-    goto    L13
-    movf    scratch2,W
-    subwf   scratch0,W
-
-; determine if result means x > y, x < y, or x == y -- REMEMBER: Borrow flag is inverse:
-;                  0 = borrow, 1 = no borrow
-
-L13:
-    movlw   0x4             ; W = 4  preload flag for less than (Borrow (B=0) & not Z flags)
-    btfsc   STATUS,C
-    movlw   0x1             ; W = 1  replace with greater than (No Borrow (B=1))
-    btfsc   STATUS,Z
-    movlw   0x2             ; W = 2  replace with equal flag because of Z being set
-    
-    andwf   scratch4,W      ; compare flag with the mask selected by the entry point
-    btfss   STATUS,Z
-    movlw   0xff            ; W = 0xff if condition true, 0 if not
-
-    return
-
-; end of isXgtY
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; isDepthGreaterThanOrEquToTarget
-;
-; Compares the top five most significant digits of the current depth against the top five most
-; significant digits of the target depth. Note that the depth value can be negative, but the target
-; must always be positive.
-;
-; The bytes in depth and target compared are:
-;   EEEEEnnnnnn
-; where n represents ignored digits while E represents digits to be compared.
-;
-; For comparing depth and target, only xx.xxx digits are necessary. The lowest digits are required
-; to achieve accuracy while tracking the position of the head, but for checking to see if target 
-; reached, only the five digits are needed.
-;
-; ON ENTRY:
-;   no requirements
-;
-; ON EXIT:
-;   C = 0 if Depth < Target 
-;   C = 1 if Depth >=  Target
-;   
-
-isDepthGreaterThanOrEquToTarget:
-    
-    bcf     STATUS,C        ; clear for operations below
-    
-    banksel depth10         ; target and depth should always be in the same bank
-    
-    movf    depthSign,W     ; load the sign byte (affects Z flag but not C)
-    btfss   STATUS,Z        ; if set, depth < target because depth sign is negative
-    return                  ; return C=0 because depth < target
-
-    movf    target10,W      ; compare next least significant digits
-    subwf   depth10,W
-    btfss   STATUS,C
-    return                  ; return C=0 because depth <= target
-    
-    movf    target9,W
-    subwf   depth9,W
-    btfss   STATUS,C 
-    return
-    
-    movf    target8,W
-    subwf   depth8,W
-    btfss   STATUS,C
-    return
-    
-    movf    target7,W
-    subwf   depth7,W
-    btfss   STATUS,C
-    return
-    
-    movf    target6,W
-    subwf   depth6,W
-    
-    return
-    
-; end of isDepthGreaterThanOrEquToTarget
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; incDepth
-;
-; Increments the signed unpacked BCD depth position variable by one step distance.
-;
-; If depth is negative, the condition depth + step <= 0 must always be true in order for the code to
-; work. This means that the step value can NEVER change during operation.
-;
-; On entry:
-;
-; Bank should point to flags.
-;
-; On exit:
-;
-; Bank will point to flags.
-;
-
-incDepth:
-
-    banksel depthSign
-    movf    depthSign,F
-    banksel flags           ; restore bank
-    btfss   STATUS,Z        ; check pos/neg
-    goto    negativeIBV
-
-; value is positive or 0 (sign is always + for zero), so add to increment
-
-    goto    incDepthAbs     ; add one step distance
-
-negativeIBV:
-
-; value is negative so subtract to increment it
-
-    call    decDepthAbs     ; subtract one step distance
-
-    call    isDepthZero     ; check for zero
-    
-    btfss   STATUS,Z        
-    return                  ; value is not zero
-
-    banksel depthSign       ; set sign positive (zero value should always have positive sign)
-    clrf    depthSign
-    banksel flags           ; restore bank
-
-    return
-
-; end of incDepth
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; decDepth
-;
-; Decrements the signed unpacked BCD depth position variable by one step distance.
-;
-; If depth is positive, the condition depth - step >= 0 must always be true in order for the code to
-; work. This means that the step value can NEVER change during operation.
-;
-; On entry:
-;
-; Bank should point to flags.
-;
-; On exit:
-;
-; Bank will point to flags.
-;
-
-decDepth:
-
-    call    isDepthZero     ; check if zero
-    btfsc   STATUS,Z
-    goto    negativeDBV     ; if it is zero, add to decrement
-
-    banksel depthSign
-    movf    depthSign,F
-    banksel flags           ; restore bank
-    btfss   STATUS,Z        ; check pos/neg
-    goto    negativeDBV     ; if depth is negative, add to decrement
-    
-; value is positive, so subtract to decrement
-
-    goto    decDepthAbs     ; subtract one step distance from depth position
-
-negativeDBV:
-
-; value is negative or zero so add to decrement
-; since value is negative or zero, decrementing will always result in negative
-
-    banksel depthSign
-    movlw   0x01
-    movwf   depthSign       ; set sign negative
-    banksel flags           ; restore bank
-
-    call    incDepthAbs     ; add one step distance to depth position
-
-    return
-
-; end of decDepth
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; incDepthAbs
-;
-; Adds one step distance to depth position BCD variable ignoring its sign.
-;
-; On entry:
-;
-
-incDepthAbs:
-
-    movlw   high depth10
-    movwf   FSR0H
-    movlw   low depth10
-    movwf   FSR0L
-
-    movlw   high step10
-    movwf   FSR1H
-    movlw   low step10
-    movwf   FSR1L
-
-    movlw   .11             ; 11 digits in the operands
-
-    goto    addBCDVars
-    
-; end of incDepthAbs
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; decDepthAbs
-;
-; Subtracts one step distance from depth position BCD variable ignoring its sign.
-;
-; On entry:
-;
-
-decDepthAbs:
-
-    movlw   high depth10
-    movwf   FSR0H
-    movlw   low depth10
-    movwf   FSR0L
-
-    movlw   high step10
-    movwf   FSR1H
-    movlw   low step10
-    movwf   FSR1L
-
-    movlw   .11             ; 11 digits in the operands
-
-    goto    subtractBCDVars
-    
-; end of decDepthAbs
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; addBCDVars
-;
-; Adds two unpacked BCD variables together, ignoring sign.
-; Carry from most significant digit will be ignored.
-;
-; On entry:
-;
-; W contains the number of digits in the unpacked BCD variables
-; FSR0 points to MSB of operand1/destination variable
-; FSR1 points to MSB of operand2/variable
-;
-
-addBCDVars:
-
-    banksel scratch1
-
-    movwf   scratch1        ; use scratch variable as loop counter
-
-    decf    WREG,F          ; adjust for use to move to digit 0
-    
-    addwf   FSR0L,F         ; point to digit 0 of operand 1
-    btfsc   STATUS,C
-    incf    FSR0H,F
-    
-    addwf   FSR1L,F         ; point to digit 0 of operand 2
-    btfsc   STATUS,C
-    incf    FSR1H,F
-
-    bcf     STATUS,C        ; clear the carry bit for the first addition
-
-aB6BV1Loop1:
-
-    moviw   FSR1--          ; add digit of the two operands
-    addwfc  INDF0,F
-    movlw   .10
-    subwf   INDF0,W         ; compare with 10 (W = f - W)
-    btfss   STATUS,C        
-    goto    aB6BV1          ; C = 0 if borrow ~ digit < 10
-
-    movlw   .10             ; adjust digit to valid BCD
-    subwf   INDF0,F         ; (F = f - W) (this will always leave Carry bit set to carry over)
-
-aB6BV1:
-
-    addfsr   FSR0,-.1       ; point to next digit
-
-    decfsz  scratch1,F
-    goto    aB6BV1Loop1
-
-    ; any carry from most significant digit will be ignored
-
-    return
-
-; end of addBCDVars
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; subtractBCDVars
-;
-; Subtracts two unpacked BCD variables, ignoring sign.
-; Borrow to most significant digit will be ignored.
-;
-; On entry:
-;
-; W contains the number of digits in the unpacked BCD variables
-; FSR0 points to MSB of operand1/destination variable
-; FSR1 points to MSB of operand2/variable
-; destination(operand1) = operand1 - operand2
-;
-
-subtractBCDVars:
-
-    banksel scratch1
-
-    movwf   scratch1        ; use scratch variable as loop counter
-    
-    decf    WREG,F          ; adjust for use to move to digit 0
-    addwf   FSR0L,F         ; point to digit 0 of operand 1
-    btfsc   STATUS,C
-    incf    FSR0H,F
-    addwf   FSR1L,F         ; point to digit 0 of operand 2
-    btfsc   STATUS,C
-    incf    FSR1H,F
- 
-    bsf     STATUS,C        ; set the carry/borrow bit for the first subtraction (no borrow)
-
-sB6BV1Loop1:
-
-    moviw   FSR1--          ; subtract digit of the two operands
-    subwfb  INDF0,F
-    btfss   INDF0,7         ; if bit 7 set, result is negative and requires adjustment
-    goto    sB6BV1          ; positive result needs no adjustment
-
-    movlw   .10             ; adjust digit to valid BCD
-    addwf   INDF0,F
-    bcf     STATUS,C        ; clear carry/borrow so it will borrow on the next subtraction
-                            ;    (the inverse of the flag is used for borrowing)
-sB6BV1:
-
-    addfsr   FSR0,-.1       ; point to next digit
-
-    decfsz  scratch1,F
-    goto    sB6BV1Loop1
-
-    ; any borrow from most significant digit will be ignored
-
-    return
-
-; end of subtractBCDVars
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; isDepthZero
-;
-; Checks if the depth position variable is zero.
-;
-; On entry:
-;
-; On return, Z = 1 if variable is zero.
-;
-
-isDepthZero:
-
-    movlw   high depth10    ; point to depth position variable
-    movwf   FSR0H
-    movlw   low depth10
-    movwf   FSR0L
-
-    goto    isZero
-
-; end of isDepthZero
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; isTargetZero
-;
-; Checks if the target depth position variable is zero.
-;
-; On entry:
-;
-; On return:
-;
-;   Z = 1 if variable is zero.
-;
-
-isTargetZero:
-
-    movlw   high target10    ; point to target depth position variable
-    movwf   FSR0H
-    movlw   low target10
-    movwf   FSR0L
-
-    goto    isZero
-
-; end of isTargetZero
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; isZero
-;
-; Checks if the variable is zero.
-;
-; On entry:
-;
-; FSR0 points to first byte of variable.
-;
-; On return, Z = 1 if variable is zero.
-;
-
-isZero:
-
-    moviw   FSR0++
-    btfss   STATUS,Z        ; check digit 10 for zero
-    return
-
-    moviw   FSR0++
-    btfss   STATUS,Z        ; check digit 9 for zero
-    return
-
-    moviw   FSR0++
-    btfss   STATUS,Z        ; check digit 8 for zero
-    return
-
-    moviw   FSR0++
-    btfss   STATUS,Z        ; check digit 7 for zero
-    return
-
-    moviw   FSR0++
-    btfss   STATUS,Z        ; check digit 6 for zero
-    return
-
-    moviw   FSR0++
-    btfss   STATUS,Z        ; check digit 5 for zero
-    return
-
-    moviw   FSR0++
-    btfss   STATUS,Z        ; check digit 4 for zero
-    return
-
-    moviw   FSR0++
-    btfss   STATUS,Z        ; check digit 3 for zero
-    return
-
-    moviw   FSR0++
-    btfss   STATUS,Z        ; check digit 2 for zero
-    return
-
-    moviw   FSR0++
-    btfss   STATUS,Z        ; check digit 1 for zero
-    return
-
-    moviw   FSR0++          ; check digit 0 for zero
-
-    return
-
-; end of isZero
 ;--------------------------------------------------------------------------------------------------
 
 ;--------------------------------------------------------------------------------------------------
@@ -4940,157 +1794,6 @@ writeByteToSerialXmtBuf:
 ;--------------------------------------------------------------------------------------------------
  
 ;--------------------------------------------------------------------------------------------------
-; writeToEeprom
-;
-; Writes block of bytes to EEprom.
-;
-; Address in EEprom to store first byte should be in eepromAddressH/L.
-; Number of bytes to write should be in eepromCount.
-; Indirect register FSR0 should point to first byte in RAM to be written.
-; The block of bytes will be copied from RAM to EEprom.
-;
-
-writeToEEprom:
-
-loopWTE1:
-
-    moviw   FSR0++              ; store byte to be written in scratch0
-    banksel scratch0
-    movwf   scratch0
-
-    call    writeByteToEEprom1ViaI2C
-
-    banksel eepromAddressL
-	incf	eepromAddressL,F    ; move to next address in EEprom
-    btfsc   STATUS,Z
-	incf	eepromAddressH,F	; increment high byte on low byte rollover
-
-    call    waitForEEprom1WriteCycleFinished
-
-    banksel eepromCount
-	decfsz	eepromCount,F       ; count down number of bytes transferred
-	goto	loopWTE1            ; not zero yet - trasfer more bytes
-
-	return
-
-; end of writeToEEprom
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; setDigitalPotInChip1
-;
-; Sets the pot specified by scratch0 in digital pot chip 1 to the value in scratch1.
-;
-
-setDigitalPotInChip1:
-
-    call    clearSSP1IF             ; make sure flag is cleared before starting
-
-    call    generateI2CStart
-
-    movlw   DIGITAL_POT1_WRITE_ID   ; send proper ID to write to digital pot chip 1
-    call    sendI2CByte             ; send byte in W register on I2C bus after SP1IF goes high
-
-    banksel scratch0                ; send the address of the pot in the chip to access
-    movf    scratch0,W
-    call    sendI2CByte
-
-    banksel scratch1                ; send the pot value
-    movf    scratch1,W
-    call    sendI2CByte
-
-    call    waitForSSP1IFHighThenClearIt    ; wait for high flag upon transmission completion
-
-    call    generateI2CStop
-
-    call    waitForSSP1IFHighThenClearIt    ; wait for high flag upon stop condition finished
-
-    return
-
-; end of setDigitalPotInChip1
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; writeByteToEEprom1ViaI2C
-;
-; Writes a byte to EEprom1 via the I2C bus.
-;
-; The byte to be written should be in scratch0.
-; The EEprom target address word should be in eepromAddressL/H
-;
-
-writeByteToEEprom1ViaI2C:
-
-    call    clearSSP1IF             ; make sure flag is cleared before starting
-
-    call    generateI2CStart
-
-    movlw   EEPROM1_WRITE_ID        ; send proper ID to write to EEprom 1
-    call    sendI2CByte             ; send byte in W register on I2C bus after SSP1IF goes high
-
-    banksel eepromAddressH          ; send the address high byte after SSP1IF goes high
-    movf    eepromAddressH,W
-    call    sendI2CByte
-
-    banksel eepromAddressL          ; send the address low byte after SSP1IF goes high
-    movf    eepromAddressL,W
-    call    sendI2CByte
-
-    banksel scratch0                ; send the byte to be written after SSP1IF goes high
-    movf    scratch0,W
-    call    sendI2CByte
-
-    call    waitForSSP1IFHighThenClearIt    ; wait for high flag upon transmission completion
-
-    call    generateI2CStop
-
-    call    waitForSSP1IFHighThenClearIt    ; wait for high flag upon stop condition finished
-
-    return
-
-; end of writeByteToEEprom1ViaI2C
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; waitForEEprom1WriteCycleFinished
-;
-; Waits for EEprom1 to finish its write cycle.
-;
-; The EEprom will not respond to a write command with an ACK during a write cycle, so a write
-; command is repeatedly sent until the EEprom responds with an ACK. A stop condition is then
-; generated to abort the write command.
-;
-
-waitForEEprom1WriteCycleFinished:
-
-wfewcf1:
-
-    call    clearSSP1IF             ; make sure flag is cleared before starting
-
-    call    generateI2CStart
-
-    movlw   EEPROM1_WRITE_ID        ; send proper ID to write to EEprom 1
-    call    sendI2CByte             ; send byte in W register on I2C bus after SP1IF goes high
-
-    call    waitForSSP1IFHighThenClearIt; wait for high flag upon transmission completion
-
-    ; abort the write operation regardless of success
-    ; it was only used to check for ACK from slave
-
-    call    generateI2CStop
-
-    call    waitForSSP1IFHighThenClearIt    ; wait for high flag upon stop condition finished
-
-    banksel SSP1CON2
-    btfsc   SSP1CON2,ACKSTAT        ; check for low ACK from slave, repeat loop if NACK
-    goto    wfewcf1
-
-    return
-
-; end of waitForEEprom1WriteCycleFinished
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
 ; generateI2CStart
 ;
 ; Generates a start condition on the I2C bus.
@@ -5265,119 +1968,6 @@ clearWCOL:
 ;--------------------------------------------------------------------------------------------------
 
 ;--------------------------------------------------------------------------------------------------
-; applyASCIINumDigitLimits
-;
-; Limits an ASCII value in scratch0 between ASCII '0' and '9'.
-;
-; Compares the value in scratch0 with ASCII for '0' and '9'. If the value is less than that for
-; the '0' character, it is replaced with that value. If greater than the '9' value, it is replaced
-; with that value.
-;
-
-applyASCIINumDigitLimits:
-
-    banksel scratch0
-
-    movlw   0x30                        ; lower limit is ASCII for '0'
-    movwf   scratch1
-
-    movlw   0x39                        ; upper limit is ASCII for '9'
-    movwf   scratch2
-
-    goto    applyLimitsToByteValue
-
-; end applyASCIINumDigitLimits
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; applyBCDDigitLimits
-;
-; Limits an unpacked BCD value in scratchc2 between 0 and 9.
-;
-; Compares the value in scratchc2 with 0 and 9. If the value is less than that for the 0, it is 
-; replaced with that value. If greater than 9, it is replaced with that value.
-;
-; ON ENTRY:
-    
-;   scratchc2 = original value to check
-;
-; ON EXIT:
-;
-;   If 0 < value < 9        W = original value      [FSR1+2]
-;   If value < 0            W = low limit           [FSR1+1]
-;   If value > 9            W = high limit          [FSR1]
-;
-
-applyBCDDigitLimits:
-
-    movlw   high scratchc0               ; point at the high limit
-    movwf   FSR1H
-    movlw   low scratchc0
-    movwf   FSR1L
-
-    movlw   .9                          ; upper limit for unpacked BCD
-    movwf   scratchc0
-    movlw   .0                          ; lower limit for unpacked BCD
-    movwf   scratchc1
-
-    goto    applyLimitsToByteValue
-
-; end applyBCDDigitLimits
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; applyLimitsToByteValue
-;
-; Clips a value between a lower and upper limit.
-;
-; Compares the value in [FSR1+2] with the limits pointed to by FSR1. FSR1 points to the high limit
-; value, the low limit should be in [FSR1+1].
-;
-; ON ENTRY:
-;
-;   [FSR1]      =   high limit
-;   [FSR1+1]    =   low limit
-;   [FSR1+2]    =   original value to check against limits
-;
-; ON EXIT:
-;
-;   If low limit < value < high limit     W = original value      [FSR1+2]
-;   If value < low limit                  W = low limit           [FSR1+1]
-;   If value > high limit,                W = high limit          [FSR1]
-;
-
-applyLimitsToByteValue:
-   
-    moviw   2[FSR1]             ; load value into W
-    subwf   INDF1,W             ; check if value greater than high limit
-    moviw   2[FSR1]             ; load value into W
-    btfsc   STATUS,C            ; skip next line if value greater than high limit
-    goto    notHigher
-
-    movf    INDF1,W             ; was greater than so replace W with the high limit
-    
-    return
-
-notHigher:
-
-    ADDFSR  FSR1,1              ; FSR1 will now point to the low limit
-    subwf   INDF1,W             ; check if value less than or equal to low limit
-    moviw   1[FSR1]             ; load value into W
-    btfss   STATUS,C            ; skip next line if value lower than or equal to low limit
-    goto    notLower
-    
-    movf    INDF1,W             ; was less than so replace W with the low limit
-
-notLower:
-
-    decf    FSR1,F              ; decrement FSR1 so that it points at the high limit upon exit again
-    
-    return
-
-; end applyLimitsToByteValue
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
 ; reallyBigDelay
 ;
 ; Delays for a second or two.
@@ -5450,10 +2040,8 @@ setup:
 
     call    setupI2CMaster7BitMode ; prepare the I2C serial bus for use
 
-    call    initHighLowCurrentLimitPotValues
-
-    call    setDigitalPots  ; set digital pot values to stored values
-
+    call    initLCD
+    
 ;start of hardware configuration
 
     banksel OPTION_REG
@@ -5474,7 +2062,6 @@ setup:
 
     movlp   high reallyBigDelay     ; ready PCLATH for the calls below
     call    reallyBigDelay
-    call    zeroDepth               ; clear the depth position variable
     movlp   high setup              ; set PCLATH back to what it was
 
     clrf   flags3
@@ -5485,40 +2072,10 @@ setup:
     movwf   switchStatesPrev
     movwf   switchStatesRemote
     
-    call    readFlagsFromEEprom     ; read the value stored for flags from the EEProm
-
     ; reset some values to a default state
-    ; leave WALL_MODE as read from eeprom - this state is saved
-	; leave MOTOR_DIR_MODE as read from eeprom - this state is saved
-
-    bcf     flags,EXTENDED_MODE
-    bcf     flags,CUT_STARTED
-    bcf     flags,AT_DEPTH
-    bcf     flags,DATA_MODIFIED
-    bcf     flags,UPDATE_DISPLAY
     
     call    resetSerialPortRcvBuf           ; re-init flags2 variable after loading from eeprom
     call    resetSerialPortXmtBuf
-
-    call    readSparkLevelsFromEEprom
-
-    ; set sparkLevel to value loaded for Notch or Wall mode depending on current mode
-
-    movf    sparkLevelNotch,W   ; use Notch mode value if in Wall Reduction mode
-    btfsc   flags,WALL_MODE
-    movf    sparkLevelWall,W    ; use Wall mode value if in Wall Reduction mode
-    movwf   sparkLevel          ; save the selected value
-
-    movlp   high zeroTarget
-    call    zeroTarget
-    movlp   high setup
-    
-    call    readTargetValueFromEEprom    ; read the value stored for depth from the EEProm
-
-    call    readPWMValsFrmEEpromSendLEDPIC
-
-    banksel MOTOR_ENABLE_L
-    bcf     MOTOR_ENABLE_L, MOTOR_ENABLE    ; enable the motor
 	
 ; enable the interrupts
 
@@ -5526,11 +2083,7 @@ setup:
     bsf     INTCON,T0IE     ; enable TMR0 interrupts
     bsf     INTCON,GIE      ; enable all interrupts
 
-    call    resetLCD        ; resets the LCD PIC and positions at line 1 column 1
-
-    call    setLEDArrays    ; set the on/off states for the LED arrays
-
-    call    sendLEDPICStart     ; command the LED PIC to display Current/Voltage on LED arrays
+;debug mks    call    resetLCD        ; resets the LCD PIC and positions at line 1 column 1
 
     return
 
@@ -5752,551 +2305,6 @@ setupI2CMaster7BitMode:
 ;--------------------------------------------------------------------------------------------------
     
 ;--------------------------------------------------------------------------------------------------
-; initHighLowCurrentLimitPotValues
-;
-; Sets the high and low current comparator digital pot variables to default settings.
-;
-; Sets the Power Level value to "2" for the default settings.
-;
-; Does not send the values to the digital pots.
-;
-
-initHighLowCurrentLimitPotValues:
-
-    movlw   HI_CURRENT_LIMIT_POT
-    banksel hiCurrentLimitPot
-    movwf   hiCurrentLimitPot
-
-    movlw   LO_CURRENT_LIMIT_POT
-    banksel loCurrentLimitPot
-    movwf   loCurrentLimitPot
-
-    movlw   .2                  ; default power level for the default pot settings is 2
-    banksel powerLevel
-    movwf   powerLevel
-
-    return
-
-; end of initHighLowCurrentLimitPotValues
-;--------------------------------------------------------------------------------------------------
-    
-;--------------------------------------------------------------------------------------------------
-; setDigitalPots
-;
-; Sets the digital pot values to their stored settings.
-;
-
-setDigitalPots:
-
-    movlp   high setHighCurrentLimitDigitalPot      ; readies the PCLATH for the calls below
-    
-    call    setHighCurrentLimitDigitalPot
-
-    call    setLowCurrentLimitDigitalPot
-
-    banksel scratch0
-    movlw   VOLTAGE_MONITOR_POT_ADDR
-    movwf   scratch0
-    movlw   VOLTAGE_MONITOR_POT
-    movwf   scratch1
-    call    setDigitalPotInChip1
-
-    banksel scratch0
-    movlw   CURRENT_MONITOR_POT_ADDR
-    movwf   scratch0
-    movlw   CURRENT_MONITOR_POT
-    movwf   scratch1
-    call    setDigitalPotInChip1
-    
-    movlp   high setDigitalPots             ; set PCLATH back to what it was on entry    
-
-    return
-
-; end of setDigitalPots
-;--------------------------------------------------------------------------------------------------
-    
-;--------------------------------------------------------------------------------------------------
-; readFlagsFromEEprom
-;
-; Reads the flags, flags2, and flags3 values from eeprom.
-;
-
-readFlagsFromEEprom:
-
-    banksel flags
-    
-    movlw   high flags      ; address in RAM
-    movwf   FSR0H
-    movlw   low flags
-    movwf   FSR0L
-        
-    clrf    eepromAddressH
-    movlw   eeFlags         ; address in EEprom
-    movwf   eepromAddressL
-    movlw   .3
-    movwf   eepromCount     ; read 3 bytes
-    call    readFromEEprom
-
-    return
-
-; end of readFlagsFromEEprom
-;--------------------------------------------------------------------------------------------------
-    
-;--------------------------------------------------------------------------------------------------
-; readSparkLevelsFromEEprom
-;
-; Reads the spark Wall/Notch aggression/speed values from eeprom.
-;
-; Note: these variables must be kept contiguous in memory and eeprom.
-;
-
-readSparkLevelsFromEEprom:
-
-    banksel sparkLevelNotch
-
-    movlw   high sparkLevelNotch    ; address in RAM
-    movwf   FSR0H
-    movlw   low sparkLevelNotch
-    movwf   FSR0L
-
-    clrf    eepromAddressH
-    movlw   eeSparkLevelNotch   ; address in EEprom
-    movwf   eepromAddressL
-    movlw   .2
-    movwf   eepromCount         ; read 2 bytes
-    call    readFromEEprom
-
-    ; apply limits to the values to prevent illegal values read from eeprom
-
-    banksel scratch0
-
-    movlw   high scratch0                   ; point FSR0 at the high limit
-    movwf   FSR1H
-    movlw   low scratch0
-    movwf   FSR1L
-
-    movlw   0x81                            ; upper limit
-    movwf   scratch0
-    movlw   0x01                            ; lower limit
-    movwf   scratch1
-
-    movlp   high applyLimitsToByteValue     ; set PCLATH for calls to applyLimitsToByteValue
-    
-    movf    sparkLevelNotch,W               ; limit notch spark level value
-    movwf   scratch2
-    call    applyLimitsToByteValue
-    movwf   sparkLevelNotch                 ; update variable with clipped value
-
-    movf    sparkLevelWall,W                ; limit wall spark level value
-    movwf   scratch2
-    call    applyLimitsToByteValue
-    movwf   sparkLevelWall                  ; update variable with clipped value
-    
-    
-    movlp   high readSparkLevelsFromEEprom  ; set PCLATH back to what it was on entry
-    
-    return
-
-; end of readSparkLevelsFromEEprom
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; readTargetValueFromEEprom
-;
-; Reads the user set target depth value from eeprom. These are unpacked BCD digits.
-;
-; Each digit is checked for valid range of 0-9 and forced to that range.
-;
-; Note: these variables must be kept contiguous in memory and eeprom.
-;
-
-readTargetValueFromEEprom:
-
-    movlw   high target9
-    movwf   FSR0H
-    movlw   low target9      ; address in RAM
-    movwf   FSR0L
-    
-    banksel eepromAddressH
-    clrf    eepromAddressH
-    movlw   eeTarget3        ; address in EEprom
-    movwf   eepromAddressL
-    movlw   .4
-    movwf   eepromCount     ; read 4 bytes
-    call    readFromEEprom
-
-    ; check each digit for illegal BCD value (0-9)
-    
-    movlp   high applyBCDDigitLimits    ; ready PCLATH for the calls below
-    
-    banksel target9
-    movf    target9,W
-    movwf   scratchc2
-    call    applyBCDDigitLimits
-    movwf   target9
-
-    movf    target8,W
-    movwf   scratchc2
-    call    applyBCDDigitLimits
-    movwf   target8
-
-    movf    target7,W
-    movwf   scratchc2
-    call    applyBCDDigitLimits
-    movwf   target7
-
-    movf    target6,W
-    movwf   scratchc2
-    call    applyBCDDigitLimits
-    movwf   target6
-    
-    movlp   high readTargetValueFromEEprom  ; set PCLATH back to what it was on entry
-
-    return
-
-; end of readTargetValueFromEEprom
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; readPWMValsFrmEEpromSendLEDPIC
-;
-; Reads the Pulse Width Module (PWM) values for the Cutting Current pulse controller and
-; transmits the values to the LED PIC which handles that function via the I2C bus.
-;
-; If the values have never previously been saved to the eeprom, the checksum validation should
-; fail and default values will be used.
-;
-
-readPWMValsFrmEEpromSendLEDPIC:
-
-    call    readPWMValuesFromEEprom
-
-    call    sendPWMValuesToLEDPIC
-
-    return
-
-; end of readPWMValsFrmEEpromSendLEDPIC
-;--------------------------------------------------------------------------------------------------
-    
-;--------------------------------------------------------------------------------------------------
-; readPWMValuesFromEEprom
-;
-; Reads PWM module time period and duty cycle and output polarity values from the eeprom.
-;
-; These values are sent to the LED PIC to specify the period and duty cycle of the pulse
-; controlling the on/off times of the cutting current.
-;
-; The least significant bit of the polarity value is used to set the PWM output polarity.
-;
-; Before saving, the bytes are added together to create a checksum which is also stored in the
-; eeprom. This allows the reading function to verify that the values are valid and also that the
-; eeprom was not empty and the values had never been stored.
-;
-; The value of 1 is added to the checksum...(see note in the header for function
-;   savePWMValuesToEEprom for details).
-;
-; Upon reading, if the checksum is invalid then safe default PWM values are used instead.
-;
-; NOTE: Improper PWM values can destroy the MOSFETs.
-;
-
-readPWMValuesFromEEprom:
-
-    banksel pwmDutyCycleHiByte
-
-    movlw   high pwmDutyCycleHiByte      ; address in RAM
-    movwf   FSR0H
-    movlw   low pwmDutyCycleHiByte
-    movwf   FSR0L
-        
-    clrf    eepromAddressH
-    movlw   eePWMDutyCycleHiByte         ; address in EEprom
-    movwf   eepromAddressL
-    movlw   .5
-    movwf   eepromCount                  ; read 4 bytes
-    call    readFromEEprom
-
-    banksel pwmDutyCycleHiByte
-
-    clrw                                ; calculate the checksum for all PWM values
-    addwf   pwmDutyCycleHiByte,W
-    addwf   pwmDutyCycleLoByte,W
-    addwf   pwmPeriod,W
-    addwf   pwmPolarity,W
-    addlw   1                           ; see note in function header
-
-    subwf   pwmCheckSum,W               ; compare calculated checksum with that read from eeprom
-    btfsc   STATUS,Z
-    goto    pwmValuesReadAreValid       ; zero flag set, checksum matched, skip
-
-    ; checksum read did not match calculated checksum, so use default values
-
-    movlw   PWM_DUTY_CYCLE_HI_BYTE_DEFAULT
-    movwf   pwmDutyCycleHiByte
-
-    movlw   PWM_DUTY_CYCLE_LO_BYTE_DEFAULT
-    movwf   pwmDutyCycleLoByte
-
-    movlw   PWM_PERIOD_DEFAULT
-    movwf   pwmPeriod
-
-    movlw   PWM_POLARITY_DEFAULT
-    movwf   pwmPolarity
-
-    clrw                                ; calculate the checksum for all PWM values
-    addwf   pwmDutyCycleHiByte,W
-    addwf   pwmDutyCycleLoByte,W
-    addwf   pwmPeriod,W
-    addwf   pwmPolarity,W
-    addlw   1                           ; see note in function header
-    movwf   pwmCheckSum
-
-pwmValuesReadAreValid:
-
-    return
-
-; end of readPWMValuesFromEEprom
-;--------------------------------------------------------------------------------------------------
-    
-;--------------------------------------------------------------------------------------------------
-; sendPWMValuesToLEDPIC
-;
-; Sends the PWM values to the LED PIC.
-;
-
-sendPWMValuesToLEDPIC:
-
-    banksel scratch0
-    movlw   .6                      ; send command byte and two values
-    movwf   scratch0
-
-    movlw   LEDPIC_SET_PWM         ; precede values with command byte
-    banksel pwmSetCommandByte
-    movwf   pwmSetCommandByte
-
-    movlw   high pwmSetCommandByte          ; point to first byte to be sent
-    movwf   FSR0H
-    movlw   low pwmSetCommandByte
-    movwf   FSR0L
-
-    call    sendBytesToLEDPICViaI2C
-
-    return
-
-; end of sendPWMValuesToLEDPIC
-;--------------------------------------------------------------------------------------------------
-    
-;--------------------------------------------------------------------------------------------------
-; readFromEEprom
-; 
-; Read block of bytes from EEprom.
-;
-; Address in EEprom from which to read first byte should be in eepromAddressH/L.
-; Number of bytes to read should be in eepromCount.
-; Indirect register FSR0 should point to first byte in RAM to be written into.
-; The block of bytes will be copied from EEprom to RAM.
-; 
-
-readFromEEprom:
-
-loopRFE1:
-
-    call    readByteFromEEprom1ViaI2C
-
-    banksel scratch0            ; store byte read to the buffer
-    movwf   scratch0
-    movwi   FSR0++
-
-    banksel eepromAddressL
-	incf	eepromAddressL,F    ; move to next address in EEprom
-    btfsc   STATUS,Z
-	incf	eepromAddressH,F	; increment high byte on low byte rollover
-
-    banksel eepromCount
-	decfsz	eepromCount,F       ; count down number of bytes transferred
-	goto	loopRFE1            ; not zero yet - transfer more bytes
-
-	return
-
-; end of readFromEEprom
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; readByteFromEEprom1ViaI2C
-;
-; Reads a byte from EEprom1 via the I2C bus.
-;
-; The byte read will be returned in scratch0.
-; The EEprom source address word should be in eepromAddressL/H
-;
-; To read a byte from the EEprom, the source address is first set by using a write command. A
-; restart condition is then generated and the byte read using a read command.
-; After the read, a NACK is sent to the slave followed by a stop condition.
-;
-
-readByteFromEEprom1ViaI2C:
-
-    movlp   high clearSSP1IF        ; ready PCLATH for the calls below
-    
-    call    clearSSP1IF             ; make sure flag is cleared before starting
-
-    call    generateI2CStart
-
-    movlw   EEPROM1_WRITE_ID        ; send proper ID to write to EEprom 1 (used to set address)
-    call    sendI2CByte             ; send byte in W register on I2C bus after SP1IF goes high
-
-    banksel eepromAddressH          ; send the address high byte
-    movf    eepromAddressH,W
-    call    sendI2CByte
-
-    banksel eepromAddressL          ; send the address low byte
-    movf    eepromAddressL,W
-    call    sendI2CByte
-
-    call    waitForSSP1IFHighThenClearIt    ; wait for high flag upon transmission completion
-
-    call    generateI2CRestart
-
-    movlw   EEPROM1_READ_ID        ; send proper ID to write to EEprom 1
-    call    sendI2CByte            ; send byte in W register via I2C bus after SP1IF goes high
-    
-    call    waitForSSP1IFHighThenClearIt    ; wait for high flag upon transmission completion
-
-    banksel SSP1CON2
-    bsf     SSP1CON2,RCEN
-
-    call    waitForSSP1IFHighThenClearIt;    wait for high flag upon reception completion
-
-    banksel SSP1BUF                 ; store the received byte in scratch0
-    movf    SSP1BUF,W
-    banksel scratch0
-    movwf   scratch0
-
-    banksel SSP1CON2                ; send NACK to terminate read
-    bsf     SSP1CON2,ACKDT          ; send high bit (NACK)
-    bsf     SSP1CON2,ACKEN          ; enable NACK transmission
-
-    call    waitForSSP1IFHighThenClearIt    ; wait for high flag upon NACK transmission complete
-
-    banksel SSP1CON2
-    bcf     SSP1CON2,ACKDT          ; reset to send ACKs
-
-    call    generateI2CStop
-
-    call    waitForSSP1IFHighThenClearIt    ; wait for high flag upon stop condition finished
-
-    movlp   high readByteFromEEprom1ViaI2C  ; set PCLATH back to what it was on entry
-    
-    return
-
-; end of readByteFromEEprom1ViaI2C
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; setStepDistance
-;
-; Sets the step distance based on standard/extended reach mode and erosion/no erosion mode.
-;
-; The step distance is the distance the head moves with each step of the motor.
-;
-; On entry:
-;
-; bank set to flags
-;
-; On exit:
-;
-       
-setStepDistance:
-    
-    movlw   high step10         ; destination variable for step value
-    movwf   FSR1H
-    movlw   low step10
-    movwf   FSR1L
-
-    btfsc   flags,EXTENDED_MODE
-    goto    handleExtendedModeSSD
-
-    ; copy value for the standard tool to the inches/motor step variable    
-    
-    btfsc   flags3,EROSION_MODE
-    goto    useStdErosionFactor
-
-    movlw   high stdNoErosion   ; source is constant in program memory -- no erosion factor
-    movwf   FSR0H               ;  ("high" directive will automatically set bit 7 for program space)
-    movlw   low stdNoErosion
-    movwf   FSR0L
-
-    goto    copyConstantToVarSSD
-
-useStdErosionFactor:
-
-    movlw   high std17Erosion   ; source is constant in program memory -- with erosion factor
-    movwf   FSR0H               ;  ("high" directive will automatically set bit 7 for program space)
-    movlw   low std17Erosion
-    movwf   FSR0L    
-    
-    goto    copyConstantToVarSSD
-    
-handleExtendedModeSSD:    
-
-    ; copy value for the extended tool to the inches/motor step variable
-
-    btfsc   flags3,EROSION_MODE
-    goto    useExtErosionFactor
-
-    movlw   high extNoErosion   ; source is constant in program memory -- no erosion factor
-    movwf   FSR0H               ;  ("high" directive will automatically set bit 7 for program space)
-    movlw   low extNoErosion
-    movwf   FSR0L
-
-    goto    copyConstantToVarSSD
-
-useExtErosionFactor:
-
-    movlw   high ext17Erosion   ; source is constant in program memory -- with erosion factor
-    movwf   FSR0H               ;  ("high" directive will automatically set bit 7 for program space)
-    movlw   low ext17Erosion
-    movwf   FSR0L
-
-copyConstantToVarSSD:
-    
-    movlw   .12                 ; number of bytes
-    goto    copyBytes
-
-; end of setStepDistance
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; copyBytes
-;
-; Copies the number of bytes specified by W from FSR0 to FSR1.
-;
-; On entry:
-;
-; W contains the number of bytes to copy
-; bank points to scratch1
-; FSR0 points to MSB of source bytes
-; FSR1 points to MSB of destination bytes
-;
-
-copyBytes:
-
-    movwf   scratch1        ; use scratch variable as loop counter
-
-cBLoop1:
-
-    moviw   FSR0++          ; copy each byte
-    movwi   FSR1++
-
-    decfsz  scratch1,F
-    goto    cBLoop1
-
-    return
-
-; end of copyBytes
-;--------------------------------------------------------------------------------------------------
-    
-;--------------------------------------------------------------------------------------------------
 ; resetLCD
 ;
 ; Resets the LCD screen.
@@ -6323,99 +2331,214 @@ resetLCD:
     
 ; end of resetLCD
 ;--------------------------------------------------------------------------------------------------
+    
+;--------------------------------------------------------------------------------------------------
+; initLCD
+;
+; Initialize the LCD display.
+;
+; See Dmcman_full-user manual.pdf from www.optrex.com for details.
+;
+
+initLCD:
+
+    banksel flags2
+    bcf     flags2, LCD_REG_SEL     ; select the LCD's instruction register
+        
+    movlw   0x00                    ; init the I2C expander chip
+    call    sendNybbleToLCDViaI2C   ; RW = 0; BL = 0; EN = 0; RS = 0
+    
+    movlw   .200                    ; delay at least 15 ms after Vcc = 4.5V
+    call    msDelay                 ; delay plenty to allow power to stabilize
+   
+	movlw	0x30                    ; 1st send of Function Set Command: (8-Bit interface)
+    call    sendNybbleToLCDViaI2C   ; (BF cannot be checked before this command.)
+                                
+    movlw   .6                      ; delay at least 4.1 mS
+    call    msDelay
+
+	movlw	0x30                    ; 2nd send of Function Set Command: (8-Bit interface)
+    call    sendNybbleToLCDViaI2C   ; (BF cannot be checked before this command.)
+
+    movlw   .6                      ; delay at least 100uS
+    call    msDelay
+
+	movlw	0x30                    ; 3rd send of Function Set Command: (8-Bit interface)
+    call    sendNybbleToLCDViaI2C   ; (BF can be checked after this command)
+
+    ; it's two complicated to check the LCD busy flag via the I2C expander bus, so care must be
+    ; taken not to send data too quickly -- as the I2C bus is relatively slow, this shouldn't be
+    ; a problem
+    
+    movlw   LCD_FUNCTIONSET         ; set to 4-bit interface
+    call    sendNybbleToLCDViaI2C
+    
+    ; from here on, two nybbles are sent for each transmission to send a complete byte
+    
+    movlw   (LCD_FUNCTIONSET | LCD_2LINE);  ; 2 line display, 5x8 font
+    call    sendNybblesToLCDViaI2C
+
+    movlw	(LCD_DISPLAYCONTROL | LCD_DISPLAYON | LCD_CURSOROFF | LCD_BLINKOFF);
+    call    sendNybblesToLCDViaI2C
+    
+    movlw   LCD_CLEARDISPLAY        ; debug mks -- make this a function
+    call    sendNybblesToLCDViaI2C   
+    
+    movlw   .3                      ; delay at least 1.53 ms after Clear Display command
+    call    msDelay
+    
+	; set the entry mode -- cursor increments position (moves right) after each character
+    ; display does not shift
+    
+	movlw   (LCD_ENTRYMODESET | LCD_INC | LCD_NO_SHIFT);
+    call    sendNybblesToLCDViaI2C       
+
+    movlw   LCD_RETURNHOME          ; set cursor at home position    debug mks -- make this a function
+    call    sendNybblesToLCDViaI2C       
+
+    movlw   .3                      ; delay at least 1.53 ms after Return Home command
+    call    msDelay
+        
+	return
+
+; end of initLCD
+;--------------------------------------------------------------------------------------------------
 
 ;--------------------------------------------------------------------------------------------------
-; setLEDArrays
+; sendNybblesToLCDViaI2C
 ;
-; Sets LED arrays to known on/off states.
+; Sends a single byte to the LCD via the I2C bus one nybble at a time.
 ;
-
-setLEDArrays:
-
-    banksel scratch2
-
-    movlw   0x00            ; value for red LED array
-    comf    WREG,W          ; invert the value -- a zero turns an LED on
-    movwf   scratch2
-    movlw   0x00            ; value for green LED array
-    comf    WREG,W          ; invert the value -- a zero turns an LED on
-    movwf   scratch3
-
-    call    sendLEDArrayValues
-
-    return
-
-; end of setLEDArrays
+; On entry:
+;
+; W should contain the nybbles to be written.
+; Flags2.LCD_REG_SEL should be set 0 to access the instruction register or 1 for the data register
+;
+; On exit:
+; 
+; The proper address~R/W code will be stored in scratch0.    
+; Variable scratch1 will be set to 2 to indicate a single byte.
+; The nybbles to be written will be stored in scratch2:scratch3
+; Indirect register FSR0 will point to scratch2.
+;
+    
+sendNybblesToLCDViaI2C:
+   
+   banksel  scratch0
+      
+   movwf    scratch2            ; store and shift lower nybble to upper nybble
+   lslf     scratch2,F
+   lslf     scratch2,F
+   lslf     scratch2,F
+   lslf     scratch2,F
+   
+   andlw    0x0f                ; mask lower nybble and store upper nybble
+   movwf    scratch3
+   
+   movlw    LCD_WRITE_ID        ; LCD's I2C address with R/W bit set low
+   movwf    scratch0
+   
+   movlw    .2
+   movwf    scratch1            ; set number of bytes to be transmitted
+    
+   goto     sendBytesViaI2C
+    
+; end of sendNybblesToLCDViaI2C
 ;--------------------------------------------------------------------------------------------------
     
 ;--------------------------------------------------------------------------------------------------
-; sendLEDArrayValues
+; sendNybbleToLCDViaI2C
 ;
-; Sends values to LED PIC to set on/off state of the LED arrays.
+; Sends a single nybble to the LCD via the I2C bus. The value is sent once to latch it into the
+; outputs of the I2C expander chip and allow for setup time before strobing, then sent again with
+; the LCD Enable line high, then again with the Enable line low to strobe the value into the LCD.
+; The nybble being sent is in the upper half of WREG, the Enable line is controlled by a bit in the
+; lower nybble.
 ;
-; Value for the red LED array should be in scratch2.
-; Value for the red LED array should be in scratch3.
+; On entry:
 ;
-
-sendLEDArrayValues:
-
-    banksel scratch0
-
-    movlw   .3                      ; send command byte and two values
-    movwf   scratch0
-    movlw   LEDPIC_SET_LEDS         ; put command byte in scratch1
-    movwf   scratch1
-
-    movlw   high scratch1           ; point to first byte to be sent
-    movwf   FSR0H
-    movlw   low scratch1
-    movwf   FSR0L
-
-    call    sendBytesToLEDPICViaI2C
-
-    return
-
-; end of sendLEDArrayValues
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; sendLEDPICStart
+; W upper nybble should contain the value to be written. The lower nybble of WREG should be cleared.
+; Flags2.LCD_REG_SEL should be set 0 to access the instruction register or 1 for the data register   
 ;
-; Sends start command to LED PIC to initiate displaying the Current and Voltage monitor voltages
-; on the LED arrays.
+; On exit:
+; 
+; The proper address~R/W code will be stored in scratch0.    
+; Variable scratch1 will be set to 1 to indicate a single byte.
+; The byte to be written will be stored in scratch2.
+; Indirect register FSR0 will point to scratch2.
 ;
 
-sendLEDPICStart:
-
-    banksel scratch0
-
-    movlw   .1                      ; send command byte
-    movwf   scratch0
-    movlw   LEDPIC_START            ; put command byte in scratch1
-    movwf   scratch1
+sendNybbleToLCDViaI2C:
+   
+   banksel  scratch0
+   
+   movwf    scratch2            ; store the value to be transmitted
+ 
+   btfsc    flags2,LCD_REG_SEL
+   bsf      scratch2,LCD_RS
+   
+   btfsc    flags,LCD_BACKLIGHT_SEL
+   bsf      scratch2,LCD_BACKLIGHT
+   
+   movlw    LCD_WRITE_ID        ; LCD's I2C address with R/W bit set low
+   movwf    scratch0
+   
+   movlw    .1
+   movwf    scratch1            ; set number of bytes to be transmitted    
+   call     sendBytesViaI2C     ; send value to preset the data lines
+   
+   bsf      scratch2, LCD_EN    ; set the Enable line high in the value
+   
+   movlw    .1                  ; send value again to set the Enable line high
+   movwf    scratch1    
+   call     sendBytesViaI2C
+   
+   bcf      scratch2, LCD_EN    ; set the Enable line low in the value
+   
+   movlw    .1                  ; send again to set the Enable line low (strobes nybble into LCD)
+   movwf    scratch1    
+   call     sendBytesViaI2C
     
-    movlw   high scratch1           ; point to first byte to be sent
-    movwf   FSR0H
-    movlw   low scratch1
-    movwf   FSR0L
-
-    call    sendBytesToLEDPICViaI2C
-
-    return
-
-; end of sendLEDPICStart
+   return
+   
+; end of sendNybbleToLCDViaI2C
 ;--------------------------------------------------------------------------------------------------
     
 ;--------------------------------------------------------------------------------------------------
-; sendBytesToLEDPICViaI2C
+; sendBytesToLCDViaI2C
+;
+; Sends bytes to the LCD via the I2C bus.
+;
+; The number of bytes to be written should be in scratch1.
+; Indirect register FSR0 should point to first byte in RAM to be written.
+;
+; The proper address~R/W code will be stored in scratch0.
+;
+
+sendBytesToLCDViaI2C:
+   
+   banksel  scratch0
+   movlw    LCD_WRITE_ID        ; LCD's I2C address with R/W bit set low
+   movwf    scratch0
+    
+   goto     sendBytesViaI2C
+    
+; end of sendBytesToLCDViaI2C
+;--------------------------------------------------------------------------------------------------
+    
+;--------------------------------------------------------------------------------------------------
+; sendBytesViaI2C
 ;
 ; Sends byte to the LED PIC via the I2C bus.
 ;
-; The number of bytes to be written should be in scratch0.
+; On entry:
+;
+; The I2C address of the destination device with R/W bit (bit 0) set low should be in scratch0
+; The number of bytes to be written should be in scratch1.
 ; Indirect register FSR0 should point to first byte in RAM to be written.
 ;
 
-sendBytesToLEDPICViaI2C:
+sendBytesViaI2C:
 
     movlp   high clearSSP1IF        ; ready PCLATH for the calls below
 
@@ -6423,254 +2546,32 @@ sendBytesToLEDPICViaI2C:
 
     call    generateI2CStart
 
-    movlw   LED_PIC_WRITE_ID        ; send proper ID to write to LED PIC
+    banksel scratch0
+    movf    scratch0,W              ; I2C device address and R/W bit
     call    sendI2CByte             ; send byte in W register on I2C bus after SSP1IF goes high
 
 loopSBLP1:
 
-    movlp   high sendI2CByte ; ready PCLATH for the call to sendI2CByte
+    movlp   high sendI2CByte        ; ready PCLATH for the call to sendI2CByte
     moviw   FSR0++                  ; load next byte to be sent
     call    sendI2CByte
     
     movlp   high loopSBLP1          ; set PCLATH for the goto
-    banksel scratch0
-	decfsz	scratch0,F              ; count down number of bytes transferred
+    banksel scratch1
+	decfsz	scratch1,F              ; count down number of bytes transferred
 	goto	loopSBLP1               ; not zero yet - transfer more bytes
 
-    movlp   high waitForSSP1IFHighThenClearIt  ; ready PCLATH for the calls below
-    call    waitForSSP1IFHighThenClearIt    ; wait for high flag upon transmission completion
+    movlp   high waitForSSP1IFHighThenClearIt   ; ready PCLATH for the calls below
+    call    waitForSSP1IFHighThenClearIt        ; wait for high flag upon transmission completion
     call    generateI2CStop
     call    waitForSSP1IFHighThenClearIt    ; wait for high flag upon stop condition finished
-    movlp   high sendBytesToLEDPICViaI2C    ; set PCLATH back to what it was on entry
+    movlp   high sendBytesViaI2C            ; set PCLATH back to what it was on entry
 
     return
 
-; end of sendBytesToLEDPICViaI2C
+; end of sendBytesViaI2C
 ;--------------------------------------------------------------------------------------------------
-    
-;--------------------------------------------------------------------------------------------------
-; debugFunc1
-;
-; Performs functions for debug testing such as stuffing values into variables, etc.
-;
-
-debugFunc1:
-
-    movlw   high depth10
-    movwf   FSR0H
-    movlw   low depth10
-    movwf   FSR0L
-
-    movlw   high target10
-    movwf   FSR1H
-    movlw   low target10
-    movwf   FSR1L
-
-    movlw   .11             ; 11 digits in the operands
-
-    call    addBCDVars
-
-    movlw   high depth10
-    movwf   FSR0H
-    movlw   low depth10
-    movwf   FSR0L
-
-    movlw   high target10
-    movwf   FSR1H
-    movlw   low target10
-    movwf   FSR1L
-
-    movlw   .11             ; 11 digits in the operands
-
-    call    subtractBCDVars
-
-    return
-
-    ; set scratch variables to a testing value
-
-    movlw   high depth10
-    movwf   FSR0H
-    movlw   low depth10
-    movwf   FSR0L
-
-    banksel cycleTestRetract0
-
-    movlw   .11         ; number of variables in buffer to set
-    movwf   cycleTestRetract0
-    movlw   .0          ; value to increment and store in variables
-    movwf   cycleTestRetract1
-
-dF1Loop:
-
-    movwi   FSR0++
-
-    incf    cycleTestRetract1,F
-    movf    cycleTestRetract1,W
-
-    decfsz  cycleTestRetract0,F
-    goto    dF1Loop
-
-    return
-
-
-    ; stuff a value into the PWM variables
-
-    movlw   0xff
-    movwf   pwmDutyCycleLoByte
-    movwf   pwmPeriod
-    movwf   pwmPolarity
-
-    movlw   0xfd
-    movwf   pwmCheckSum
-
-    return
-
-; end of debugFunc1
-;--------------------------------------------------------------------------------------------------
-    
-;--------------------------------------------------------------------------------------------------
-; sendOutputStates
-;
-; Sends the appropriate output states via the serial port to a remote device such as the User
-; Interface board.
-;
-; On Entry:
-;
-; On Exit:
-;
-
-sendOutputStates:
-
-    call    setupOutputStatesPacket    
-
-    banksel outputStates                ; start with all outputs off
-    movlw   0xff
-    movwf   outputStates
-
-    btfsc   MODE_JOGUP_SEL_EPWR_P, AC_PWR_OK_SIGNAL ; signal input high to turn on LED
-    bcf     outputStates, AC_OK_LED_FLAG
-
-    btfsc   SHORT_DETECT_P, SHORT_DETECT        ; buzzer and Short LED on when short detected
-    goto    noShortAlerts
- 
-    banksel POWER_ON_L                          ; no short if power supply is not turned on
-    btfss   POWER_ON_L,POWER_ON                 ; this results in "no current" but is ignored
-    goto    noShortAlerts
-   
-    banksel outputStates
-
-    bcf     outputStates, SHORT_LED_FLAG        ; light the "short" LED
-    
-    btfsc   flags3,ALARM_ENABLED                ; activate audible alarm only if enabled
-    bcf     outputStates, BUZZER_FLAG
-
-noShortAlerts:    
-
-    banksel outputStates    
-    movf    outputStates,W
-    
-    movlp   high writeByteToSerialXmtBuf
-    call    writeByteToSerialXmtBuf    
-    
-    movlp   high startSerialPortTransmit
-    call    startSerialPortTransmit
-
-    return
-
-; end of sendOutputStates
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; setupOutputStatesPacket
-;
-; Prepares the serial transmit buffer with header, length byte of 3, and command SET_OUTPUTS_CMD.
-; The data to be sent can then be added to the packet.
-;
-; Before the packet is transmitted, the length byte should be replaced with the actual number of
-; bytes which have been added to the packet.
-;
-; On Entry:
-;
-; On Exit:
-;
-; packet is stuffed with header, length value of 3, and command byte
-; FSR0 and serialXmtBufPtrH:serialXmtBufPtrL will point to the location for the next data byte
-;
-    
-setupOutputStatesPacket:
-
-    movlw   SET_OUTPUTS_CMD           ; packet command byte
-    
-    movlp   high setupSerialXmtPkt
-    call    setupSerialXmtPkt
-    movlp   high setupOutputStatesPacket
-
-    banksel flags
-
-    return
-
-; end of setupOutpuStatesPacket
-;--------------------------------------------------------------------------------------------------
-    
-;--------------------------------------------------------------------------------------------------
-; handleSwitchStatesPacket
-;
-; Stores the switch states reported by the remote device via serial link, such as the User Interface
-; board.
-;
-; On Entry:
-;
-;   FSR1 points to serialRcvBuf
-; 
-
-handleSwitchStatesPacket:
-
-    moviw   1[FSR1]                     ; get the switch state value from the packet
-
-    banksel switchStatesRemote
-    movwf   switchStatesRemote          ; store the switch states
-
-    return
-
-; end of handleSwitchStatesPacket
-;--------------------------------------------------------------------------------------------------
-
-;--------------------------------------------------------------------------------------------------
-; parseCommandFromSerialPacket
-;
-; Parses the command byte in a serial packet and performs the appropriate action.
-;
-; On Entry:
-;
-; On Exit:
-;
-; FSR1 points to serialRcvBuf
-;
-
-parseCommandFromSerialPacket:
-
-    movlw   SERIAL_RCV_BUF_LINEAR_LOC_H     ; point FSR0 at start of receive buffer
-    movwf   FSR1H
-    movlw   SERIAL_RCV_BUF_LINEAR_LOC_L
-    movwf   FSR1L
-
-; parse the command byte by comparing with each command
-
-    movf    INDF1,W
-    sublw   SWITCH_STATES_CMD
-    btfsc   STATUS,Z
-    goto    handleSwitchStatesPacket
-
-;    movf    INDF1,W
-;    sublw   ???        -- use this example for a future command
-;    btfsc   STATUS,Z
-;    goto    handleLCDInstructionPacket
-
-    return
-
-; end of parseCommandFromSerialPacket
-;--------------------------------------------------------------------------------------------------
-
+        
 ;--------------------------------------------------------------------------------------------------
 ; setupSerialXmtPkt
 ;
@@ -6840,7 +2741,7 @@ hspSumLoop:
 
     movf    WREG, F                         ; test for zero
     btfsc   STATUS, Z                       ; error if not zero
-    goto    parseCommandFromSerialPacket    ; checksum good so handle command
+    ;debug mksgoto    parseCommandFromSerialPacket    ; checksum good so handle command
 
 hspError:
 
@@ -7514,48 +3415,6 @@ handleSerialPortTransmitInt:
 ;--------------------------------------------------------------------------------------------------
 ; Constants in Program Memory
 ;
-; Step Ratio Constants:
-;
-; Specifies the blade travel distance per motor step for different types of cutting heads.
-;
-; These are unpacked BCD decimal values, each digit can be 0-9.
-; The decimal point is two digits from the left for all depth related values.
-;
-; Standard Reach Tool Ratio
-;
-; One motor step is 0.000217391"
-; typically, blade erosion is 17%
-;
-; For 1:1 (no erosion factor), use .000217391
-; For 17% erosion factior use .000217391 * .83 = 0.000180435
-;
-; Extended Reach Tool Ratio
-;
-; One motor step is .000023774"
-; typically, blade erosion is 17%
-;
-; For 1:1 (no erosion factor), use .000023774
-; For 17% erosion factior use .000023774 * .83 = 0.000019732
-;
-; Unpacked BCD is used for inch/pulse depth related values as it allows for the fastest math during
-; operation. The decimal point is two digits from the left for all depth related values.
-;
-; NOTE: program memory is only 14 bits wide. Using dw rather than db forces each value to fill
-; an entire 14 bit word rather than being packed two values to a word.
-;
-; Last digit is sign: 0 for positive; 1 for negative
-;
-; 00.000217391 -> standard tool with no erosion factor ~ inches/motor pulse
-stdNoErosion    dw  0,0,0,0,0,2,1,7,3,9,1,0     ; unpacked BCD ~ xx.xxxxxxxxx
-
-; 00.000180435 -> standard tool with 17% erosion factor ~ inches/motor pulse
-std17Erosion    dw  0,0,0,0,0,1,8,0,4,3,5,0     ; unpacked BCD ~ xx.xxxxxxxxx
-
-; 00.000023774 -> extended tool with no erosion factor ~ inches/motor pulse
-extNoErosion    dw  0,0,0,0,0,0,2,3,7,7,4,0     ; unpacked BCD ~ xx.xxxxxxxxx
-
-; 00.000019732 -> extended tool with 17% erosion factor ~ inches/motor pulse
-ext17Erosion    dw  0,0,0,0,0,0,1,9,7,3,2,0     ; unpacked BCD ~ xx.xxxxxxxxx
 
 ; end of Constants in Program Memory
 ;--------------------------------------------------------------------------------------------------
@@ -7564,36 +3423,36 @@ ext17Erosion    dw  0,0,0,0,0,0,1,9,7,3,2,0     ; unpacked BCD ~ xx.xxxxxxxxx
 ; Strings in Program Memory
 ;
     
-string0	    dw	'O','P','T',' ','A','u','t','o','N','o','t','c','h','e','r',' ','7','.','7','i',0x00
-string1	    dw	'C','H','O','O','S','E',' ','C','O','N','F','I','G','U','R','A','T','I','O','N',0x00
-string2	    dw	'1',' ','-',' ','E','D','M',' ','N','o','t','c','h','C','u','t','t','e','r',0x00
-string3	    dw	'2',' ','-',' ','E','D','M',' ','E','x','t','e','n','d',' ','R','e','a','c','h',0x00
-string4	    dw	'O','P','T',' ','E','D','M',' ','N','o','t','c','h','C','u','t','t','e','r',0x00
-string5	    dw	'1',' ','-',' ','S','e','t',' ','C','u','t',' ','D','e','p','t','h',0x00
-string6	    dw	'1',' ','-',' ','D','e','p','t','h',' ','=',' ',0x00
-string7	    dw	'2',' ','-',' ','C','u','t',' ','N','o','t','c','h',0x00
-string8	    dw	'3',' ','-',' ','J','o','g',' ','E','l','e','c','t','r','o','d','e',0x00
-string9	    dw	' ',' ',' ','S','e','t',' ','C','u','t',' ','D','e','p','t','h',0x00
-string10    dw	'0','.','0','0','0',' ','i','n','c','h','e','s',0x00
-string11    dw	'J','o','g',' ','M','o','d','e',0x00
-string12    dw	'Z','e','r','o',' ','o','r',' ','E','x','i','t',0x00
-string13    dw	'O','P','T',' ','E','D','M',' ','E','x','t','e','n','d',' ','R','e','a','c','h',0x00
-string14    dw	'T','u','r','n',' ','o','n',' ','C','u','t',' ','V','o','l','t','a','g','e',0x00
-string15    dw	'U','p',' ',' ',' ','S','p','e','e','d','>',0x00
-string16    dw	'D','o','w','n',' ',' ','S','t','o','p','>',0x00
-string17    dw	'N','o','t','c','h',' ','M','o','d','e',0x00
-string18    dw	'W','a','l','l',' ','M','o','d','e',' ',0x00
-string19    dw	'C','y','c','l','e',' ','T','e','s','t',0x00
-string20    dw	'5',' ','-',' ','M','o','t','o','r',' ','D','i','r',' ',0x00
-string21    dw	'4',' ','-',' ',0x00
-string22    dw	'N','o','r','m','a','l',0x00
-string23    dw	'R','e','v',0x00
-string24    dw	'6',' ','-',' ','E','r','o','s','i','o','n',' ',0x00
-string25    dw	'7',' ','-',' ','A','l','a','r','m',' ',0x00
-string26    dw	'N','o','n','e',0x00
-string27    dw	'1','7','%',0x00
-string28    dw	'O','f','f',0x00
-string29    dw	'O','n',0x00
+string0	    dw	'N','o','a','h','B','o','t',' ','1','.','0',0x00
+string1	    dw	'C',0x00
+string2	    dw	'1',0x00
+string3	    dw	'2',0x00
+string4	    dw	'O',0x00
+string5	    dw	'1',0x00
+string6	    dw	'1',0x00
+string7	    dw	'2',0x00
+string8	    dw	'3',0x00
+string9	    dw	' ',0x00
+string10    dw	'0',0x00
+string11    dw	'J',0x00
+string12    dw	'Z',0x00
+string13    dw	'O',0x00
+string14    dw	'T',0x00
+string15    dw	'U',0x00
+string16    dw	'D',0x00
+string17    dw	'N',0x00
+string18    dw	'W',0x00
+string19    dw	'C',0x00
+string20    dw	'5',0x00
+string21    dw	'4',0x00
+string22    dw	'N',0x00
+string23    dw	'R',0x00
+string24    dw	'6',0x00
+string25    dw	'7',0x00
+string26    dw	'N',0x00
+string27    dw	'1',0x00
+string28    dw	'O',0x00
+string29    dw	'O',0x00
     
 ; end of Strings in Program Memory
 ;--------------------------------------------------------------------------------------------------
