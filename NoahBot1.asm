@@ -246,47 +246,36 @@ LCD_RS          EQU .0                    ; 1 = data register 0 = instruction re
 
 ; Port A
 
-UNUSED_RA1_P    EQU     PORTA
-UNUSED_RA1      EQU     RA1         ; input ~ RA1 can only be input on PIC16f1459
-;NA_RA2         EQU     RA2         ; RA2 not implemented on PIC16f1459
-SHORT_DETECT_P  EQU     PORTA
-SHORT_DETECT    EQU     RA3         ; input ~ RA3 can only be input on PIC16f1459
-HI_LIMIT_P      EQU     PORTA
-HI_LIMIT        EQU     RA4         ; input ~ cutting current hight limit
-POWER_ON_L      EQU     LATA
-POWER_ON        EQU     RA5         ; output
-;NA_RA6         EQU     RA6         ; RA6 not implemented on PIC16f1459
-;NA_RA7         EQU     RA7         ; RA7 not implemented on PIC16f1459
+SWITCH_P        EQU     PORTA
+RED_SW		EQU	RA0
+BLK_SW		EQU	RA1
+		
+LEDS_L		EQU	LATA
+LEFT_LED	EQU	RA4
+RIGHT_LED	EQU	RA5
+		
+; Port B		
 
-; Port B
+UNUSED_B_P	EQU	PORTB
+UNUSED_B_L	EQU	LATB
+UNUSED_RB5	EQU	RB5
+UNUSED_RB7	EQU	RB7
 
 I2CSDA_LINE     EQU     RB4
 I2CSCL_LINE     EQU     RB6
 
 ; Port C
 
-MOTOR_ENABLE_L  EQU     LATC
-MOTOR_ENABLE    EQU     RC0         ; output
-MOTOR_DIR_L     EQU     LATC
-MOTOR_DIR       EQU     RC3         ; output
-MOTOR_STEP_L    EQU     LATC
-MOTOR_STEP      EQU     RC4         ; output
-LO_LIMIT_P      EQU     PORTC
-LO_LIMIT		EQU     RC5         ; input ~ cutting current low limit
-MOTOR_MODE_L    EQU     LATC
-MOTOR_MODE      EQU     RC6         ; output ~ motor step size selection
-
-; Switches
-
-MODE_JOGUP_SEL_EPWR_P   EQU     PORTC
-JOGDWN_P                EQU     PORTA
-
-MODE_SW                 EQU     RC1
-JOG_UP_SW               EQU     RC2
-SELECT_SW               EQU		RC7
-AC_PWR_OK_SIGNAL        EQU     RC7     ; only when using User Interface Board               
-ELECTRODE_PWR_SW        EQU     RC4
-JOG_DOWN_SW             EQU     RA0
+MOTORS_L	EQU	LATB
+     
+ICSPDAT		EQU	RC0
+ICSPCLK		EQU	RC1
+UNUSED_RC2	EQU	RC2
+UNUSED_RC3	EQU	RC3
+STEER_MOTOR_A	EQU	RC4
+STEER_MOTOR_B	EQU	RC5
+DRIVE_MOTOR_A	EQU	RC6
+DRIVE_MOTOR_B	EQU	RC7
 
 ;bits in switchStates variable
 
@@ -657,13 +646,13 @@ debugLoop:
 
 trapSwitchInputs:
 
-    banksel MODE_JOGUP_SEL_EPWR_P
+    banksel PORTC
 
-    btfss   MODE_JOGUP_SEL_EPWR_P,MODE_SW
-    bcf     switchStates,MODE_SW_FLAG
+    btfss   PORTC,0
+    bcf     switchStates,0
 
-    btfss   MODE_JOGUP_SEL_EPWR_P,JOG_UP_SW
-    bcf     switchStates,JOG_UP_SW_FLAG
+    btfss   PORTC,0
+    bcf     switchStates,0
 
 ; Select switch input is ignored here...for boards connected to a User Interface board, R84 is
 ; installed which allows the Cutting Current Power Supply's AC OK output to be read via this input.
@@ -673,13 +662,13 @@ trapSwitchInputs:
 ;    btfss   MODE_JOGUP_SEL_EPWR_P,SELECT_SW
 ;    bcf     switchStates,SELECT_SW_FLAG
 
-    btfss   MODE_JOGUP_SEL_EPWR_P,ELECTRODE_PWR_SW
-    bcf     switchStates,ELECTRODE_PWR_SW_FLAG
+    btfss   PORTC,0
+    bcf     switchStates,0
 
-    banksel JOGDWN_P
+    banksel PORTA
 
-    btfss   JOGDWN_P,JOG_DOWN_SW
-    bcf     switchStates,JOG_DOWN_SW_FLAG
+    btfss   PORTA,0
+    bcf     switchStates,0
 
     return
 
@@ -2034,7 +2023,7 @@ setup:
 
     call    setupPortC      ; prepare Port C  for I/O
 
-    call    setupSerialPort ; prepare serial port for sending and receiving
+;DEBUG NPS    call    setupSerialPort ; prepare serial port for sending and receiving
 
     call    initializeOutputs
 
@@ -2155,11 +2144,12 @@ setupPortA:
 
     ; set direction for each pin used
 
-    bsf     TRISA, JOG_DOWN_SW          ; input    
-    bsf     TRISA, SHORT_DETECT         ; input
-    bsf     TRISA, HI_LIMIT             ; input
-    bcf     TRISA, POWER_ON             ; output
-
+    bsf     TRISA, RED_SW	      ; input    
+    bsf     TRISA, BLK_SW             ; input
+    
+    bcf	    TRISA, LEFT_LED	      ; output
+    bcf	    TRISA, RIGHT_LED	      ; output
+    
     return
 
 ; end of setupPortA
@@ -2196,6 +2186,9 @@ setupPortB:
     banksel TRISB
     movlw   b'11111111'                 ; first set all to inputs
     movwf   TRISB
+    
+    bcf	    TRISB, UNUSED_RB5	      ; output
+    bcf	    TRISB, UNUSED_RB7	      ; output
 
     return
 
@@ -2230,15 +2223,15 @@ setupPortC:
     movlw   b'11111111'                 ; first set all to inputs
     movwf   TRISC
 
-    bcf     TRISC, MOTOR_ENABLE         ; output
-    bsf     TRISC, MODE_SW              ; input
-    bsf     TRISC, JOG_UP_SW            ; input
-    bcf     TRISC, MOTOR_DIR            ; output
-    bcf     TRISC, MOTOR_STEP           ; output
-    bsf     TRISC, LO_LIMIT             ; input
-    bcf     TRISC, MOTOR_MODE           ; output
-    bsf     TRISC, SELECT_SW            ; input
-
+    bcf     TRISC, ICSPDAT	        ; output
+    bcf     TRISC, ICSPCLK  	        ; output
+    bcf     TRISC, UNUSED_RC2	        ; output
+    bcf     TRISC, UNUSED_RC3	        ; output
+    bcf     TRISC, STEER_MOTOR_A	; output
+    bcf     TRISC, STEER_MOTOR_B	; output
+    bcf     TRISC, DRIVE_MOTOR_A	; output
+    bcf     TRISC, DRIVE_MOTOR_B	; output
+    
     return
 
 ; end of setupPortC
@@ -2254,23 +2247,24 @@ setupPortC:
 ;
 
 initializeOutputs:
-
-    banksel LATA
-    bcf     LATA, POWER_ON
-
-    banksel LATC
-    bsf     LATC, MOTOR_STEP
-
-    banksel LATC
-    bsf     LATC, MOTOR_DIR
-
-    banksel LATC              ; disable the motor
-    bsf     LATC, MOTOR_ENABLE
-
-    banksel LATC
-	bcf     LATC, MOTOR_MODE    ; choose full step if J8-1 (MS1) = Off and J8-2 (MS2) = On
-                                        ; see notes at top of page for more info
-
+    
+    banksel LEDS_L
+    bsf	    LEDS_L, LEFT_LED	        ; set cathode high to turn off LED
+    bsf	    LEDS_L, RIGHT_LED		; set cathode high to turn off LED
+    
+    banksel UNUSED_B_L
+    clrf    UNUSED_B_L			; set all port B pins low
+    
+    banksel MOTORS_L
+    bcf	    MOTORS_L,ICSPDAT		; PICKIT programming line
+    bcf	    MOTORS_L,ICSPCLK		; PICKIT programming line
+    bcf	    MOTORS_L,UNUSED_RC2		; set unused low
+    bcf	    MOTORS_L,UNUSED_RC3		; set unused low
+    bcf	    MOTORS_L,STEER_MOTOR_A	; set both lines low to turn motor off
+    bcf	    MOTORS_L,STEER_MOTOR_B	
+    bcf	    MOTORS_L,DRIVE_MOTOR_A	; set both lines low to turn motor off
+    bcf	    MOTORS_L,DRIVE_MOTOR_B
+    
     return
 
 ; end of initializeOutpus
