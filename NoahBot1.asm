@@ -266,7 +266,7 @@ I2CSCL_LINE     EQU     RB6
 
 ; Port C
 
-MOTORS_L	EQU	LATB
+MOTORS_L	EQU	LATC
      
 ICSPDAT		EQU	RC0
 ICSPCLK		EQU	RC1
@@ -427,6 +427,7 @@ BLINK_ON_FLAG			EQU		0x01
     debounceH               ; switch debounce timer decremented by the interrupt routine
     debounceL
 
+    secDelayCnt
     msDelayCnt
     bigDelayCnt
     smallDelayCnt
@@ -596,7 +597,32 @@ start:
     call    setup           
     movlp   high start
 
-    goto    alternateFlashLEDs  ;debug mks
+    movlw   .10                 ; alternating LED flash for 10 cycles
+    call    alternateFlashLEDs
+        
+loop623:
+        
+    call    driveForward
+
+    movlw   .3
+    call    delayWSeconds
+    
+    call    stopDrive
+    
+    movlw   .2
+    call    delayWSeconds
+    
+    call    driveReverse
+    
+    movlw   .3
+    call    delayWSeconds
+
+    call    stopDrive
+
+    movlw   .3                 ; alternating LED flash for 10 cycles
+    call    alternateFlashLEDs
+    
+    goto    loop623
     
 menuLoop:
 
@@ -635,6 +661,83 @@ debugLoop:
 ;--------------------------------------------------------------------------------------------------
 
 ;--------------------------------------------------------------------------------------------------
+; driveForward
+;
+; Drives rover forward. Sets one drive control line high and one low to apply differential voltage
+; to the drive motor.
+;    
+    
+driveForward:
+
+    
+    banksel MOTORS_L
+    
+    bsf	    MOTORS_L,DRIVE_MOTOR_A
+    bcf	    MOTORS_L,DRIVE_MOTOR_B	
+
+    return
+    
+; end of driveForward
+;--------------------------------------------------------------------------------------------------
+
+;--------------------------------------------------------------------------------------------------
+; driveReverse
+;
+; Drives rover in reverse. Sets one drive control line high and one low to apply differential
+; voltage to the drive motor.
+;    
+    
+driveReverse:
+
+    banksel MOTORS_L
+    
+    bcf	    MOTORS_L,DRIVE_MOTOR_A
+    bsf	    MOTORS_L,DRIVE_MOTOR_B	
+
+    return
+    
+; end of driveReverse
+;--------------------------------------------------------------------------------------------------
+        
+;--------------------------------------------------------------------------------------------------
+; stopDrive
+;
+; Stops rover drive motor.
+;    
+    
+stopDrive:
+
+    
+    banksel MOTORS_L
+    
+    bcf	    MOTORS_L,DRIVE_MOTOR_A	; set both lines low to turn motor off
+    bcf	    MOTORS_L,DRIVE_MOTOR_B
+
+    return
+    
+; end of stopDrive
+;--------------------------------------------------------------------------------------------------
+
+;--------------------------------------------------------------------------------------------------
+; steerCenter
+;
+; Removes voltage from the steering direction motor so the return spring can return the front
+; wheels to the straight ahead direction.
+;    
+    
+steerCenter:
+
+    banksel MOTORS_L
+    
+    bcf	    MOTORS_L,STEER_MOTOR_A	; set both lines low to turn motor off
+    bcf	    MOTORS_L,STEER_MOTOR_B	
+
+    return
+    
+; end of steerCenter
+;--------------------------------------------------------------------------------------------------
+        
+;--------------------------------------------------------------------------------------------------
 ; alternateFlashLEDs
 ;
 ; Flashes the LEDs back and forth.
@@ -642,23 +745,30 @@ debugLoop:
     
 alternateFlashLEDs:
     
+    banksel scratch0
+    movwf   scratch0
+        
 aFLLoop:    
-    
+        
     banksel LEDS_L
     bcf     LEDS_L,LEFT_LED             ; left LED on
     bsf     LEDS_L,RIGHT_LED            ; right LED off
     
     movlw   .255
-    call    msDelay
+    call    delayWms
     
     banksel LEDS_L
     bsf     LEDS_L,LEFT_LED             ; left LED off
     bcf     LEDS_L,RIGHT_LED            ; right LED on
 
     movlw   .255
-    call    msDelay
-    
+    call    delayWms
+
+    banksel scratch0
+    decfsz  scratch0,F
     goto    aFLLoop
+    
+    return
     
 ; end of start
 ;--------------------------------------------------------------------------------------------------
@@ -1508,7 +1618,7 @@ loopSD1:
 ;--------------------------------------------------------------------------------------------------
 
 ;--------------------------------------------------------------------------------------------------
-; msDelay
+; delayWms
 ;
 ; Creates a delay of x milliseconds where x is specified in the W register.
 ;
@@ -1524,7 +1634,7 @@ loopSD1:
 ; Note: these values do not take into account interrupts processing which will increase the delay.
 ;
 
-msDelay:
+delayWms:
 
     banksel msDelayCnt
 
@@ -1557,9 +1667,49 @@ msD1Loop3:
 
 	return
 
-; end of msDelay
+; end of delayWms
 ;--------------------------------------------------------------------------------------------------
 
+;--------------------------------------------------------------------------------------------------
+; delayWSeconds
+;
+; Creates a delay of x seconds where x is specified in the W register. Uses delayWms repeatedly
+; to create proper delay.
+;
+; On Entry:
+;
+; W contains number of seconds to delay.
+;
+;
+
+delayWSeconds:
+
+    banksel secDelayCnt
+
+    movwf   secDelayCnt          ; number of seconds
+
+sDLoop1:    
+    
+    movlw   .250
+    call    delayWms
+
+    movlw   .250
+    call    delayWms
+
+    movlw   .250
+    call    delayWms
+    
+    movlw   .250
+    call    delayWms
+
+    decfsz  secDelayCnt,F
+    goto    sDLoop1
+    
+    return
+    
+; end of delayWSeconds
+;--------------------------------------------------------------------------------------------------
+        
 ;--------------------------------------------------------------------------------------------------
 ; printString
 ;
@@ -2377,19 +2527,19 @@ initLCD:
     call    sendNybbleToLCDViaI2C   ; RW = 0; BL = 0; EN = 0; RS = 0
     
     movlw   .200                    ; delay at least 15 ms after Vcc = 4.5V
-    call    msDelay                 ; delay plenty to allow power to stabilize
+    call    delayWms                ; delay plenty to allow power to stabilize
    
 	movlw	0x30                    ; 1st send of Function Set Command: (8-Bit interface)
     call    sendNybbleToLCDViaI2C   ; (BF cannot be checked before this command.)
                                 
     movlw   .6                      ; delay at least 4.1 mS
-    call    msDelay
+    call    delayWms
 
 	movlw	0x30                    ; 2nd send of Function Set Command: (8-Bit interface)
     call    sendNybbleToLCDViaI2C   ; (BF cannot be checked before this command.)
 
     movlw   .6                      ; delay at least 100uS
-    call    msDelay
+    call    delayWms
 
 	movlw	0x30                    ; 3rd send of Function Set Command: (8-Bit interface)
     call    sendNybbleToLCDViaI2C   ; (BF can be checked after this command)
@@ -2413,7 +2563,7 @@ initLCD:
     call    sendNybblesToLCDViaI2C   
     
     movlw   .3                      ; delay at least 1.53 ms after Clear Display command
-    call    msDelay
+    call    delayWms
     
 	; set the entry mode -- cursor increments position (moves right) after each character
     ; display does not shift
@@ -2425,7 +2575,7 @@ initLCD:
     call    sendNybblesToLCDViaI2C       
 
     movlw   .3                      ; delay at least 1.53 ms after Return Home command
-    call    msDelay
+    call    delayWms
         
 	return
 
