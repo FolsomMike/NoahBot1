@@ -596,6 +596,8 @@ start:
     call    setup           
     movlp   high start
 
+    goto    alternateFlashLEDs  ;debug mks
+    
 menuLoop:
 
 ;debug mks    
@@ -632,6 +634,35 @@ debugLoop:
 ; end of start
 ;--------------------------------------------------------------------------------------------------
 
+;--------------------------------------------------------------------------------------------------
+; alternateFlashLEDs
+;
+; Flashes the LEDs back and forth.
+;    
+    
+alternateFlashLEDs:
+    
+aFLLoop:    
+    
+    banksel LEDS_L
+    bcf     LEDS_L,LEFT_LED             ; left LED on
+    bsf     LEDS_L,RIGHT_LED            ; right LED off
+    
+    movlw   .255
+    call    msDelay
+    
+    banksel LEDS_L
+    bsf     LEDS_L,LEFT_LED             ; left LED off
+    bcf     LEDS_L,RIGHT_LED            ; right LED on
+
+    movlw   .255
+    call    msDelay
+    
+    goto    aFLLoop
+    
+; end of start
+;--------------------------------------------------------------------------------------------------
+        
 ;--------------------------------------------------------------------------------------------------
 ; trapSwitchInputs
 ;
@@ -2029,7 +2060,7 @@ setup:
 
     call    setupI2CMaster7BitMode ; prepare the I2C serial bus for use
 
-    call    initLCD
+;debug mks   call    initLCD
     
 ;start of hardware configuration
 
@@ -2252,11 +2283,11 @@ setupPortC:
 initializeOutputs:
     
     banksel LEDS_L
-    bsf	    LEDS_L, LEFT_LED	        ; set cathode high to turn off LED
+    bsf	    LEDS_L, LEFT_LED	    ; set cathode high to turn off LED
     bsf	    LEDS_L, RIGHT_LED		; set cathode high to turn off LED
     
     banksel UNUSED_B_L
-    clrf    UNUSED_B_L			; set all port B pins low
+    clrf    UNUSED_B_L              ; set all port B pins low
     
     banksel MOTORS_L
     bcf	    MOTORS_L,ICSPDAT		; PICKIT programming line
