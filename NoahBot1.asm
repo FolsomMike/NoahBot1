@@ -602,22 +602,26 @@ start:
         
 loop623:
         
-    call    driveForward
+    ;call    driveForward
+    call    steerLeft
 
     movlw   .3
     call    delayWSeconds
     
-    call    stopDrive
+    ;call    stopDrive
+    call    steerCenter
     
     movlw   .2
     call    delayWSeconds
     
-    call    driveReverse
+    ;call    driveReverse
+    call    steerRight
     
     movlw   .3
     call    delayWSeconds
 
-    call    stopDrive
+    ;call    stopDrive
+    call    steerCenter
 
     movlw   .3                 ; alternating LED flash for 10 cycles
     call    alternateFlashLEDs
@@ -718,6 +722,46 @@ stopDrive:
 ; end of stopDrive
 ;--------------------------------------------------------------------------------------------------
 
+;--------------------------------------------------------------------------------------------------
+; steerLeft
+;
+; Turns front wheels to the left. Sets one drive control line high and one low to apply
+; differential voltage to the drive motor.
+;    
+    
+steerLeft:
+
+    
+    banksel MOTORS_L
+    
+    bsf	    MOTORS_L,STEER_MOTOR_A
+    bcf	    MOTORS_L,STEER_MOTOR_B	
+
+    return
+    
+; end of steerLeft
+;--------------------------------------------------------------------------------------------------
+
+;--------------------------------------------------------------------------------------------------
+; steerRight
+;
+; Turns front wheels to the right. Sets one drive control line high and one low to apply
+; differential voltage to the drive motor.
+;    
+    
+steerRight:
+
+    
+    banksel MOTORS_L
+    
+    bcf	    MOTORS_L,STEER_MOTOR_A
+    bsf	    MOTORS_L,STEER_MOTOR_B	
+
+    return
+    
+; end of steerRight
+;--------------------------------------------------------------------------------------------------
+        
 ;--------------------------------------------------------------------------------------------------
 ; steerCenter
 ;
