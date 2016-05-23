@@ -653,20 +653,20 @@ debugFunction:
     bsf     flags2, LCD_REG_SEL     ; select the LCD's data register
     
     movlw   'T'                     ; write 'T' to the LCD display
-    call    longCallsendNybblesToLCDViaI2C
+    call    longCallSendNybblesToLCDViaI2C
         
     banksel flags2
     bcf     flags2, LCD_REG_SEL     ; select the LCD's instruction register
     
     movlw   LCD_SETDDRAMADDR | 0x40 ; move to row 2, col 1
 
-    ;debug mks -- need to actually send the code to the LCD here!
+    call    longCallSendNybblesToLCDViaI2C
     
     banksel flags2
     bsf     flags2, LCD_REG_SEL     ; select the LCD's data register
     
     movlw   '1'                     ; write '1' to the LCD display
-    call    longCallsendNybblesToLCDViaI2C
+    call    longCallSendNybblesToLCDViaI2C
         
 debugLoop:
     goto    debugLoop
@@ -679,21 +679,21 @@ debugLoop:
 ;--------------------------------------------------------------------------------------------------
         
 ;--------------------------------------------------------------------------------------------------
-; longCallsendNybblesToLCDViaI2C
+; longCallSendNybblesToLCDViaI2C
 ;
 ; Sets the PCLATH register to allow a call to the function which is in a different memory page. Sets
 ; the register back to the local page after the call returns.
 ;
         
-longCallsendNybblesToLCDViaI2C:
+longCallSendNybblesToLCDViaI2C:
     
     movlp   high sendNybblesToLCDViaI2C
     call    sendNybblesToLCDViaI2C
-    movlp   longCallsendNybblesToLCDViaI2C
+    movlp   longCallSendNybblesToLCDViaI2C
     
     return
     
-; end of longCallsendNybblesToLCDViaI2C
+; end of longCallSendNybblesToLCDViaI2C
 ;--------------------------------------------------------------------------------------------------
     
 ;--------------------------------------------------------------------------------------------------
