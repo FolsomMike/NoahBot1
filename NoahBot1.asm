@@ -597,6 +597,8 @@ start:
     call    setup           
     movlp   high start
 
+    goto    debugFunction   ;debug mks
+    
     movlw   .10                 ; alternating LED flash for 10 cycles
     call    alternateFlashLEDs
         
@@ -629,33 +631,6 @@ loop623:
     goto    loop623
     
 menuLoop:
-
-;debug mks    
-
-    banksel flags2
-    bsf     flags2, LCD_REG_SEL     ; select the LCD's data register
-    
-    movlw   'T'                     ; write 'T' to the LCD display
-    call    sendNybblesToLCDViaI2C
-        
-    banksel flags2
-    bcf     flags2, LCD_REG_SEL     ; select the LCD's instruction register
-    
-    movlw   LCD_SETDDRAMADDR | 0x40 ; move to row 2, col 1
-
-    banksel flags2
-    bsf     flags2, LCD_REG_SEL     ; select the LCD's data register
-    
-    movlw   '1'                     ; write '1' to the LCD display
-    call    sendNybblesToLCDViaI2C
-    
-    
-debugLoop:
-    goto    debugLoop
-    
-;debug mks end    
-    
-    
     
     call    doMainMenu      ; display and handle the main menu
 
@@ -664,6 +639,63 @@ debugLoop:
 ; end of start
 ;--------------------------------------------------------------------------------------------------
 
+;--------------------------------------------------------------------------------------------------
+; debugFunction
+;
+; Debugging functions.
+;    
+    
+debugFunction:
+    
+;debug mks    
+
+    banksel flags2
+    bsf     flags2, LCD_REG_SEL     ; select the LCD's data register
+    
+    movlw   'T'                     ; write 'T' to the LCD display
+    call    longCallsendNybblesToLCDViaI2C
+        
+    banksel flags2
+    bcf     flags2, LCD_REG_SEL     ; select the LCD's instruction register
+    
+    movlw   LCD_SETDDRAMADDR | 0x40 ; move to row 2, col 1
+
+    ;debug mks -- need to actually send the code to the LCD here!
+    
+    banksel flags2
+    bsf     flags2, LCD_REG_SEL     ; select the LCD's data register
+    
+    movlw   '1'                     ; write '1' to the LCD display
+    call    longCallsendNybblesToLCDViaI2C
+        
+debugLoop:
+    goto    debugLoop
+    
+;debug mks end    
+    
+    return
+    
+; end of debugFunction
+;--------------------------------------------------------------------------------------------------
+        
+;--------------------------------------------------------------------------------------------------
+; longCallsendNybblesToLCDViaI2C
+;
+; Sets the PCLATH register to allow a call to the function which is in a different memory page. Sets
+; the register back to the local page after the call returns.
+;
+        
+longCallsendNybblesToLCDViaI2C:
+    
+    movlp   high sendNybblesToLCDViaI2C
+    call    sendNybblesToLCDViaI2C
+    movlp   longCallsendNybblesToLCDViaI2C
+    
+    return
+    
+; end of longCallsendNybblesToLCDViaI2C
+;--------------------------------------------------------------------------------------------------
+    
 ;--------------------------------------------------------------------------------------------------
 ; driveForward
 ;
@@ -2254,7 +2286,7 @@ setup:
 
     call    setupI2CMaster7BitMode ; prepare the I2C serial bus for use
 
-;debug mks   call    initLCD
+    call    initLCD
     
 ;start of hardware configuration
 
@@ -2297,7 +2329,8 @@ setup:
     bsf     INTCON,T0IE     ; enable TMR0 interrupts
     bsf     INTCON,GIE      ; enable all interrupts
 
-;debug mks    call    resetLCD        ; resets the LCD PIC and positions at line 1 column 1
+    ; the resetLCD function is still coded for the parallel connected LCD -- won't work for I2C
+    ;call    resetLCD        ; resets the LCD PIC and positions at line 1 column 1
 
     return
 
@@ -2565,39 +2598,41 @@ resetLCD:
 initLCD:
 
     banksel flags2
-    bcf     flags2, LCD_REG_SEL     ; select the LCD's instruction register
+    bcf     flags2, LCD_REG_SEL         ; select the LCD's instruction register
         
+    bsf     flags2, LCD_BACKLIGHT_SEL   ; turn on the backlight
+    
     movlw   0x00                    ; init the I2C expander chip
     call    sendNybbleToLCDViaI2C   ; RW = 0; BL = 0; EN = 0; RS = 0
     
     movlw   .200                    ; delay at least 15 ms after Vcc = 4.5V
-    call    delayWms                ; delay plenty to allow power to stabilize
+    call    longCallDelayWms        ; delay plenty to allow power to stabilize
    
-	movlw	0x30                    ; 1st send of Function Set Command: (8-Bit interface)
+	movlw	0x03                    ; 1st send of Function Set Command: (8-Bit interface)
     call    sendNybbleToLCDViaI2C   ; (BF cannot be checked before this command.)
                                 
     movlw   .6                      ; delay at least 4.1 mS
-    call    delayWms
+    call    longCallDelayWms
 
-	movlw	0x30                    ; 2nd send of Function Set Command: (8-Bit interface)
+	movlw	0x03                    ; 2nd send of Function Set Command: (8-Bit interface)
     call    sendNybbleToLCDViaI2C   ; (BF cannot be checked before this command.)
 
     movlw   .6                      ; delay at least 100uS
-    call    delayWms
+    call    longCallDelayWms
 
-	movlw	0x30                    ; 3rd send of Function Set Command: (8-Bit interface)
+	movlw	0x03                    ; 3rd send of Function Set Command: (8-Bit interface)
     call    sendNybbleToLCDViaI2C   ; (BF can be checked after this command)
 
-    ; it's two complicated to check the LCD busy flag via the I2C expander bus, so care must be
+    ; it's too complicated to check the LCD busy flag via the I2C expander bus, so care must be
     ; taken not to send data too quickly -- as the I2C bus is relatively slow, this shouldn't be
     ; a problem
     
-    movlw   LCD_FUNCTIONSET         ; set to 4-bit interface
+    movlw   0x02                    ; set to 4-bit interface
     call    sendNybbleToLCDViaI2C
     
     ; from here on, two nybbles are sent for each transmission to send a complete byte
     
-    movlw   (LCD_FUNCTIONSET | LCD_2LINE);  ; 2 line display, 5x8 font
+    movlw   (LCD_FUNCTIONSET | LCD_2LINE)  ; 2 line display, 5x8 font
     call    sendNybblesToLCDViaI2C
 
     movlw	(LCD_DISPLAYCONTROL | LCD_DISPLAYON | LCD_CURSOROFF | LCD_BLINKOFF);
@@ -2607,7 +2642,7 @@ initLCD:
     call    sendNybblesToLCDViaI2C   
     
     movlw   .3                      ; delay at least 1.53 ms after Clear Display command
-    call    delayWms
+    call    longCallDelayWms
     
 	; set the entry mode -- cursor increments position (moves right) after each character
     ; display does not shift
@@ -2619,7 +2654,7 @@ initLCD:
     call    sendNybblesToLCDViaI2C       
 
     movlw   .3                      ; delay at least 1.53 ms after Return Home command
-    call    delayWms
+    call    longCallDelayWms
         
 	return
 
@@ -2629,7 +2664,7 @@ initLCD:
 ;--------------------------------------------------------------------------------------------------
 ; sendNybblesToLCDViaI2C
 ;
-; Sends a single byte to the LCD via the I2C bus one nybble at a time.
+; Sends a single byte to the LCD via the I2C bus one nybble at a time, upper nybble first.
 ;
 ; On entry:
 ;
@@ -2648,22 +2683,15 @@ sendNybblesToLCDViaI2C:
    
    banksel  scratch0
       
-   movwf    scratch2            ; store and shift lower nybble to upper nybble
-   lslf     scratch2,F
-   lslf     scratch2,F
-   lslf     scratch2,F
-   lslf     scratch2,F
+   movwf    scratch2                ; save for swapping and later retrieval of lower nybble
+   swapf    scratch2,W              ; swap upper to lower
    
-   andlw    0x0f                ; mask lower nybble and store upper nybble
-   movwf    scratch3
+   call     sendNybbleToLCDViaI2C   ; send upper nybble (now in lower, upper will be ignored)
    
-   movlw    LCD_WRITE_ID        ; LCD's I2C address with R/W bit set low
-   movwf    scratch0
+   banksel  scratch2
+   movf     scratch2,W              ; retrieve to send lower nybble
    
-   movlw    .2
-   movwf    scratch1            ; set number of bytes to be transmitted
-    
-   goto     sendBytesViaI2C
+   goto     sendNybbleToLCDViaI2C   ; send lower nybble (upper will be ignored)
     
 ; end of sendNybblesToLCDViaI2C
 ;--------------------------------------------------------------------------------------------------
@@ -2679,7 +2707,7 @@ sendNybblesToLCDViaI2C:
 ;
 ; On entry:
 ;
-; W upper nybble should contain the value to be written. The lower nybble of WREG should be cleared.
+; WREG lower nybble should contain value to be written. The upper nybble of WREG will be ignored.
 ; Flags2.LCD_REG_SEL should be set 0 to access the instruction register or 1 for the data register   
 ;
 ; On exit:
@@ -2691,34 +2719,45 @@ sendNybblesToLCDViaI2C:
 ;
 
 sendNybbleToLCDViaI2C:
-   
+      
    banksel  scratch0
    
-   movwf    scratch2            ; store the value to be transmitted
+   andlw    0x0f                ; upper nybble to zeroes (these end up being the control lines)
+
+   movwf    scratch4            ; store the value to be transmitted
  
+   swapf    scratch4,F          ; swap so value is in upper nybble and control lines are in lower
+   
    btfsc    flags2,LCD_REG_SEL
-   bsf      scratch2,LCD_RS
+   bsf      scratch4,LCD_RS
    
-   btfsc    flags,LCD_BACKLIGHT_SEL
-   bsf      scratch2,LCD_BACKLIGHT
-   
+   btfsc    flags2,LCD_BACKLIGHT_SEL
+   bsf      scratch4,LCD_BACKLIGHT
+  
+   movlw    high scratch4       ; set pointer to location of nybble to be sent
+   movwf    FSR0H
+   movlw    low scratch4
+   movwf    FSR0L
+      
    movlw    LCD_WRITE_ID        ; LCD's I2C address with R/W bit set low
    movwf    scratch0
    
    movlw    .1
    movwf    scratch1            ; set number of bytes to be transmitted    
    call     sendBytesViaI2C     ; send value to preset the data lines
-   
-   bsf      scratch2, LCD_EN    ; set the Enable line high in the value
+
+   bsf      scratch4, LCD_EN    ; set the Enable line high in the value
    
    movlw    .1                  ; send value again to set the Enable line high
    movwf    scratch1    
+   addfsr   FSR0,-.1
    call     sendBytesViaI2C
    
-   bcf      scratch2, LCD_EN    ; set the Enable line low in the value
+   bcf      scratch4, LCD_EN    ; set the Enable line low in the value
    
    movlw    .1                  ; send again to set the Enable line low (strobes nybble into LCD)
    movwf    scratch1    
+   addfsr   FSR0,-.1   
    call     sendBytesViaI2C
     
    return
@@ -2792,6 +2831,24 @@ loopSBLP1:
     return
 
 ; end of sendBytesViaI2C
+;--------------------------------------------------------------------------------------------------
+
+;--------------------------------------------------------------------------------------------------
+; longCallDelayWms
+;
+; Sets the PCLATH register to allow a call to delayWms which is in a different memory page. Sets
+; the register back to the local page after the call returns.
+;
+        
+longCallDelayWms:
+    
+    movlp   high delayWms
+    call    delayWms
+    movlp   longCallDelayWms
+    
+    return
+    
+; end of longCallDelayWms
 ;--------------------------------------------------------------------------------------------------
         
 ;--------------------------------------------------------------------------------------------------
@@ -3248,7 +3305,7 @@ calcAndStoreCheckSumSerPrtXmtBuf:
     movlw   SERIAL_XMT_BUF_LINEAR_LOC_L
     movwf   FSR0L
 
-    addfsr  FSR0,.3                             ; skip 2 header bytes and 1 length byte
+    addfsr  FSR0,3                              ; skip 2 header bytes and 1 length byte
                                                 ; command byte is part of checksum
 
     goto    calculateAndStoreCheckSum
@@ -3312,7 +3369,7 @@ sumSeries:
 sumSLoop:                       ; sum the series
 
     addwf   INDF0,W
-    addfsr  INDF0,1
+    addfsr  INDF0,1             ; debug mks -- this should be FSR0 not INDF0???
 
     decfsz  usartScratch0,F
     goto    sumSLoop
