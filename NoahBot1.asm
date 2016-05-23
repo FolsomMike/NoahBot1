@@ -648,25 +648,21 @@ menuLoop:
 debugFunction:
     
 ;debug mks    
-
-    banksel flags2
-    bsf     flags2, LCD_REG_SEL     ; select the LCD's data register
+ 
+    movlw   high string0                ; "NoahBot 1.0"
+    movwf   FSR1H
+    movlw   low string0
+    movwf   FSR1L
+    call    printStringI2CUnbuffered
     
-    movlw   'T'                     ; write 'T' to the LCD display
-    call    longCallSendNybblesToLCDViaI2C
+    movlw   LCD_SETDDRAMADDR | 0x40     ; move to row 2, col 1
+    call    sendControlCodeToLCD
         
-    banksel flags2
-    bcf     flags2, LCD_REG_SEL     ; select the LCD's instruction register
-    
-    movlw   LCD_SETDDRAMADDR | 0x40 ; move to row 2, col 1
-
-    call    longCallSendNybblesToLCDViaI2C
-    
-    banksel flags2
-    bsf     flags2, LCD_REG_SEL     ; select the LCD's data register
-    
-    movlw   '1'                     ; write '1' to the LCD display
-    call    longCallSendNybblesToLCDViaI2C
+    movlw   high string1                ; "Noah = tater tot"
+    movwf   FSR1H
+    movlw   low string1
+    movwf   FSR1L
+    call    printStringI2CUnbuffered
         
 debugLoop:
     goto    debugLoop
@@ -677,7 +673,7 @@ debugLoop:
     
 ; end of debugFunction
 ;--------------------------------------------------------------------------------------------------
-        
+    
 ;--------------------------------------------------------------------------------------------------
 ; longCallSendNybblesToLCDViaI2C
 ;
@@ -695,7 +691,35 @@ longCallSendNybblesToLCDViaI2C:
     
 ; end of longCallSendNybblesToLCDViaI2C
 ;--------------------------------------------------------------------------------------------------
+
+;--------------------------------------------------------------------------------------------------
+; sendControlCodeToLCD
+;
+; Sends a control code in WREG to the LCD via the I2C bus.
+;
+; On entry:
+;
+; WREG = control code to be sent.
+;
+; On exit:
+;
+; The flags2.LCD_REG_SEL bit is cleared which selects the LCD's instruction register.
+;    
+        
+sendControlCodeToLCD:
     
+    banksel flags2
+    bcf     flags2, LCD_REG_SEL         ; select the LCD's instruction register    
+    
+    movlp   high sendNybblesToLCDViaI2C
+    call    sendNybblesToLCDViaI2C
+    movlp   sendControlCodeToLCD
+    
+    return
+    
+; end of sendControlCodeToLCD
+;--------------------------------------------------------------------------------------------------
+        
 ;--------------------------------------------------------------------------------------------------
 ; driveForward
 ;
@@ -1056,7 +1080,7 @@ setupLCDBlockPkt:
 ;
 ; Waits for transmission to be completed.
 ;
-; Sets up the serial transmission buffer in preparation for the next printString (LCD_BLOCK_CMD
+; Sets up the transmission buffer in preparation for the next printString (LCD_BLOCK_CMD
 ;  packet).
 ;
 ; On entry:
@@ -1068,12 +1092,15 @@ setupLCDBlockPkt:
 ; be printed, so place control codes in the buffer first and then call this function to print
 ; everything.
 ;
+; wip mks -- printString is a buffered method used for serial port connection -- needs updated to
+;           work with the I2C
+;
 
 printStringWaitPrep:
 
     call    printString
     call    waitSerialXmtComplete   ; wait until buffer printed
-
+    
     call    setupLCDBlockPkt
 
     return
@@ -1829,6 +1856,39 @@ pS1:
 ; end of printString
 ;--------------------------------------------------------------------------------------------------
 
+;--------------------------------------------------------------------------------------------------
+; printStringI2CUnbuffered
+;
+; Prints the string pointed to by FSR1 to the I2C port.
+;
+; On entry:
+;
+; FSR1 points to the desired string
+;
+
+printStringI2CUnbuffered:
+
+    banksel flags2
+    bsf     flags2, LCD_REG_SEL         ; select the LCD's data register
+    
+loopPSI:
+    
+    moviw   FSR1++
+
+    btfss   STATUS,Z
+    goto    pSI1
+
+    return
+
+pSI1:
+
+    call    longCallSendNybblesToLCDViaI2C
+    
+    goto    loopPSI          ; loop until length of string reached 
+
+; end of printStringI2CUnbuffered
+;--------------------------------------------------------------------------------------------------
+        
 ;--------------------------------------------------------------------------------------------------
 ; waitSerialXmtComplete
 ;
@@ -3703,7 +3763,7 @@ handleSerialPortTransmitInt:
 ;
     
 string0	    dw	'N','o','a','h','B','o','t',' ','1','.','0',0x00
-string1	    dw	'C',0x00
+string1	    dw	'N','o','a','h',' ','=',' ','t','a','t','e','r',' ','t','o','t',0x00
 string2	    dw	'1',0x00
 string3	    dw	'2',0x00
 string4	    dw	'O',0x00
