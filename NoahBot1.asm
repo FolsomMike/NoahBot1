@@ -327,7 +327,7 @@ LENGTH_BYTE_VALID   EQU 2
 SERIAL_PACKET_READY EQU 3    
 LCD_REG_SEL         EQU 4
 LCD_BACKLIGHT_SEL   EQU 5
-UNUSED_2_2          EQU 6
+WARNING_ERROR       EQU 6
 UNUSED_2_3          EQU 7
     
 ; bits in flags3 variable
@@ -396,7 +396,7 @@ BLINK_ON_FLAG			EQU		0x01
                             ; bit 3: 1 = data packet ready for processing
                             ; bit 4: 0 = LCD instruction register, 1 = LCD data register
                             ; bit 5: 0 = LCD backlight off, 1 = on
-							; bit 6: 0 =
+							; bit 6: 0 = Warning message, 1 = Error message
 							; bit 7: 0 =
     
     flags3                  ; bit 0:
@@ -470,6 +470,7 @@ BLINK_ON_FLAG			EQU		0x01
     I2CScratch2
     I2CScratch3
     I2CScratch4
+    I2CScratch5
     
 	; next variables ONLY written to by interrupt code
 
@@ -660,15 +661,31 @@ debugFunction:
     movlw   low string0
     movwf   FSR1L
     call    printStringI2CUnbuffered
-    
-    movlw   LCD_SETDDRAMADDR | 0x40     ; move to row 2, col 1
-    call    sendControlCodeToLCD
-        
+  
+    call    gotoLCDLine2Col1
+            
     movlw   high string1                ; "Noah = tater tot"
     movwf   FSR1H
     movlw   low string1
     movwf   FSR1L
     call    printStringI2CUnbuffered
+        
+    movlw   .4
+    call    delayWSeconds
+    
+    movlw   high string2                ; "Destructo Mode"
+    movwf   FSR1H
+    movlw   low string2
+    movwf   FSR1L
+    movlw   .10                         ; flash warning x number of times
+    call    displayWarningOnLCD
+    
+    movlw   high string3                ; "I'm f*ing lost"
+    movwf   FSR1H
+    movlw   low string3
+    movwf   FSR1L
+    movlw   .255                        ; flash warning x number of times
+    call    displayErrorOnLCD
         
 debugLoop:
     goto    debugLoop
@@ -678,6 +695,132 @@ debugLoop:
     return
     
 ; end of debugFunction
+;--------------------------------------------------------------------------------------------------
+
+;--------------------------------------------------------------------------------------------------
+; clearLCD
+;
+; Clears the LCD display and moves the cursor to line 1 column 1.
+;
+        
+clearLCD:
+
+    movlw   LCD_CLEARDISPLAY
+    call    sendControlCodeToLCD
+    
+    movlw   .3                      ; delay at least 1.53 ms after Clear Display command
+    call    delayWms
+ 
+    return
+    
+; end of clearLCD
+;--------------------------------------------------------------------------------------------------
+
+;--------------------------------------------------------------------------------------------------
+; gotoLCDLine1Col1
+;
+; Moves the cursor to line 1 column 1 on the LCD.
+;
+        
+gotoLCDLine1Col1:
+    
+    movlw   LCD_SETDDRAMADDR | 0x00     ; move to row 1, col 1
+    goto    sendControlCodeToLCD
+    
+; end of gotoLCDLine1Col1
+;--------------------------------------------------------------------------------------------------
+
+;--------------------------------------------------------------------------------------------------
+; gotoLCDLine2Col1
+;
+; Moves the cursor to line 2 column 1 on the LCD.
+;
+        
+gotoLCDLine2Col1:
+    
+    movlw   LCD_SETDDRAMADDR | 0x40     ; move to row 2, col 1
+    goto    sendControlCodeToLCD
+    
+; end of gotoLCDLine2Col1
+;--------------------------------------------------------------------------------------------------
+
+;--------------------------------------------------------------------------------------------------
+; displayWarningOnLCD
+;
+; Flashes "* Warning *" on line 1 while displaying the string pointed by FSR1 on line 2 of the LCD.
+;
+; On entry:
+;
+; WREG contains number of times to flash
+; FSR1 points to string to be displayed
+;
+    
+displayWarningOnLCD:
+
+    banksel flags2                      
+    bcf     flags2,WARNING_ERROR        ; clear flag to indicate a warning message
+    goto    dWOLCD1
+    
+displayErrorOnLCD:    
+
+    banksel flags2
+    bsf     flags2,WARNING_ERROR        ; set flag to indicate an error message
+        
+dWOLCD1:
+    
+    banksel I2CScratch5                 ; store the flash count
+    movwf   I2CScratch5
+    
+    call    clearLCD
+    
+    call    gotoLCDLine2Col1            ; display the specified string on line 2
+    call    printStringI2CUnbuffered
+
+dWOLCDLoop:
+    
+    call    gotoLCDLine1Col1
+
+    banksel flags2
+    btfsc   flags2,WARNING_ERROR
+    goto    dWOLCD2
+    
+    movlw   high warningStr             ; display "* Warning *" on line 1
+    movwf   FSR1H
+    movlw   low warningStr
+    movwf   FSR1L
+    goto    dWOLCD3
+    
+dWOLCD2:    
+
+    movlw   high errorStr               ; display "* Error *" on line 1
+    movwf   FSR1H
+    movlw   low errorStr
+    movwf   FSR1L
+        
+dWOLCD3:
+    
+    call    printStringI2CUnbuffered
+
+    movlw   .255                        ; delay 255 ms
+    call    delayWms
+
+    call    gotoLCDLine1Col1            ; erase line 1
+    movlw   high clearStr
+    movwf   FSR1H
+    movlw   low clearStr
+    movwf   FSR1L
+    call    printStringI2CUnbuffered
+
+    movlw   .255                        ; delay 255 ms
+    call    delayWms
+        
+    banksel I2CScratch5
+    decfsz  I2CScratch5,F
+    goto    dWOLCDLoop    
+    
+    return
+    
+; end of displayWarningOnLCD
 ;--------------------------------------------------------------------------------------------------
     
 ;--------------------------------------------------------------------------------------------------
@@ -3768,10 +3911,14 @@ handleSerialPortTransmitInt:
 ; Strings in Program Memory
 ;
     
+warningStr  dw  ' ',' ','*',' ', 'W','a','r','n','i','n','g',' ','*',0x00
+errorStr    dw  ' ',' ',' ','*',' ', 'E','r','r','o','r',' ','*',0x00
+clearStr    dw  ' ',' ', ' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',0x00
+  
 string0	    dw	'N','o','a','h','B','o','t',' ','1','.','1',0x00
 string1	    dw	'N','o','a','h',' ','=',' ','t','a','t','e','r',' ','t','o','t',0x00
-string2	    dw	'1',0x00
-string3	    dw	'2',0x00
+string2	    dw	'D','e','s','t','r','u','c','t','o',' ','M','o','d','e',0x00
+string3	    dw	'I','\'','m',' ','f','*','i','n','g',' ','l','o','s','t','!',0x00
 string4	    dw	'O',0x00
 string5	    dw	'1',0x00
 string6	    dw	'1',0x00
