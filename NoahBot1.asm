@@ -465,6 +465,12 @@ BLINK_ON_FLAG			EQU		0x01
     scratch9
     scratch10
 
+    I2CScratch0                ; these are used by I2C functions
+    I2CScratch1
+    I2CScratch2
+    I2CScratch3
+    I2CScratch4
+    
 	; next variables ONLY written to by interrupt code
 
 	intScratch0				; scratch pad variable for exclusive use by interrupt code
@@ -2741,15 +2747,15 @@ initLCD:
     
 sendNybblesToLCDViaI2C:
    
-   banksel  scratch0
+   banksel  I2CScratch0
       
-   movwf    scratch2                ; save for swapping and later retrieval of lower nybble
-   swapf    scratch2,W              ; swap upper to lower
+   movwf    I2CScratch2             ; save for swapping and later retrieval of lower nybble
+   swapf    I2CScratch2,W           ; swap upper to lower
    
    call     sendNybbleToLCDViaI2C   ; send upper nybble (now in lower, upper will be ignored)
    
-   banksel  scratch2
-   movf     scratch2,W              ; retrieve to send lower nybble
+   banksel  I2CScratch2
+   movf     I2CScratch2,W              ; retrieve to send lower nybble
    
    goto     sendNybbleToLCDViaI2C   ; send lower nybble (upper will be ignored)
     
@@ -2780,43 +2786,43 @@ sendNybblesToLCDViaI2C:
 
 sendNybbleToLCDViaI2C:
       
-   banksel  scratch0
+   banksel  I2CScratch0
    
    andlw    0x0f                ; upper nybble to zeroes (these end up being the control lines)
 
-   movwf    scratch4            ; store the value to be transmitted
+   movwf    I2CScratch4         ; store the value to be transmitted
  
-   swapf    scratch4,F          ; swap so value is in upper nybble and control lines are in lower
+   swapf    I2CScratch4,F       ; swap so value is in upper nybble and control lines are in lower
    
    btfsc    flags2,LCD_REG_SEL
-   bsf      scratch4,LCD_RS
+   bsf      I2CScratch4,LCD_RS
    
    btfsc    flags2,LCD_BACKLIGHT_SEL
-   bsf      scratch4,LCD_BACKLIGHT
+   bsf      I2CScratch4,LCD_BACKLIGHT
   
-   movlw    high scratch4       ; set pointer to location of nybble to be sent
+   movlw    high I2CScratch4    ; set pointer to location of nybble to be sent
    movwf    FSR0H
-   movlw    low scratch4
+   movlw    low I2CScratch4
    movwf    FSR0L
       
    movlw    LCD_WRITE_ID        ; LCD's I2C address with R/W bit set low
-   movwf    scratch0
+   movwf    I2CScratch0
    
    movlw    .1
-   movwf    scratch1            ; set number of bytes to be transmitted    
+   movwf    I2CScratch1         ; set number of bytes to be transmitted    
    call     sendBytesViaI2C     ; send value to preset the data lines
 
-   bsf      scratch4, LCD_EN    ; set the Enable line high in the value
+   bsf      I2CScratch4, LCD_EN    ; set the Enable line high in the value
    
    movlw    .1                  ; send value again to set the Enable line high
-   movwf    scratch1    
+   movwf    I2CScratch1    
    addfsr   FSR0,-.1
    call     sendBytesViaI2C
    
-   bcf      scratch4, LCD_EN    ; set the Enable line low in the value
+   bcf      I2CScratch4, LCD_EN    ; set the Enable line low in the value
    
    movlw    .1                  ; send again to set the Enable line low (strobes nybble into LCD)
-   movwf    scratch1    
+   movwf    I2CScratch1    
    addfsr   FSR0,-.1   
    call     sendBytesViaI2C
     
@@ -2838,9 +2844,9 @@ sendNybbleToLCDViaI2C:
 
 sendBytesToLCDViaI2C:
    
-   banksel  scratch0
+   banksel  I2CScratch0
    movlw    LCD_WRITE_ID        ; LCD's I2C address with R/W bit set low
-   movwf    scratch0
+   movwf    I2CScratch0
     
    goto     sendBytesViaI2C
     
@@ -2867,8 +2873,8 @@ sendBytesViaI2C:
 
     call    generateI2CStart
 
-    banksel scratch0
-    movf    scratch0,W              ; I2C device address and R/W bit
+    banksel I2CScratch0
+    movf    I2CScratch0,W           ; I2C device address and R/W bit
     call    sendI2CByte             ; send byte in W register on I2C bus after SSP1IF goes high
 
 loopSBLP1:
@@ -2878,8 +2884,8 @@ loopSBLP1:
     call    sendI2CByte
     
     movlp   high loopSBLP1          ; set PCLATH for the goto
-    banksel scratch1
-	decfsz	scratch1,F              ; count down number of bytes transferred
+    banksel I2CScratch1
+	decfsz	I2CScratch1,F           ; count down number of bytes transferred
 	goto	loopSBLP1               ; not zero yet - transfer more bytes
 
     movlp   high waitForSSP1IFHighThenClearIt   ; ready PCLATH for the calls below
@@ -3762,7 +3768,7 @@ handleSerialPortTransmitInt:
 ; Strings in Program Memory
 ;
     
-string0	    dw	'N','o','a','h','B','o','t',' ','1','.','0',0x00
+string0	    dw	'N','o','a','h','B','o','t',' ','1','.','1',0x00
 string1	    dw	'N','o','a','h',' ','=',' ','t','a','t','e','r',' ','t','o','t',0x00
 string2	    dw	'1',0x00
 string3	    dw	'2',0x00
